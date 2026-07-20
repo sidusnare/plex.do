@@ -1,0 +1,308 @@
+Claude Sonnet 5.6 High
+
+---
+
+Write a complete, production-quality Python CLI script named `plex.do` that uses the `plexapi` library to interact with a Plex Media Server. Also produce a `requirements.txt` and a bash completion script with live cached ID/name completion.
+
+---
+
+## GENERAL REQUIREMENTS
+
+* Python 3.11+
+* Fully type-annotate all functions, parameters, and return types
+* Must pass pylint ≥ 9.5 (target 10.0)
+* Follow Google Python style guide
+* Small, single-purpose functions; no unused variables, no bare `except`, no duplicate logic
+* No global mutable state
+
+---
+
+## CONFIGURATION
+
+* Config: `~/.local/etc/plex.do.ini`
+  ```ini
+  [plex]
+  url = http://localhost:32400
+  token_path = /tmp/plex_token
+  ```
+* Expand `~` and enviroment variables in all paths; read token as UTF-8; fail fast with clear messages if either is missing
+
+---
+
+## CONSTANTS
+
+```python
+CONFIG_PATH = Path("~/.local/etc/plex.do.ini").expanduser()
+CACHE_DIR   = Path("~/.cache/plex.do").expanduser()
+LOG         = logging.getLogger("plex.do")
+```
+
+---
+
+## CLI FRAMEWORK
+
+* Use `argparse`; helpful descriptions and expected formats on all arguments
+* Global flags on every command:
+  * `--json` — machine-readable JSON to stdout only
+  * `--verbose` — high-level progress to stderr
+  * `--debug` — detailed internal logs to stderr
+  * `--dry-run` — show intent without mutating Plex
+* Logging must **never** pollute JSON output
+
+---
+
+## SHARED HELPERS
+
+### `normalize_rating_key(raw) -> int`
+Cast ratingKeys to int; raise `ValueError` with a clear message on failure.
+
+### `parse_date(value: str | date | datetime | None) -> datetime | None`
+Accept `"%Y-%m-%d %H:%M:%S"` and `"%Y-%m-%d"` string formats; raise on bad input.
+
+### `_cell(value) -> str`
+`str(value).strip()` — used everywhere a value is measured or printed, to eliminate `\r` and other control characters that cause blank-line artefacts in table output.
+
+### `_display_title(item) -> str`
+For `Episode`: `"Show Title - Episode Title"` (uses `item.grandparentTitle`). For all others: `item.title`. Use this in every place a title is displayed, written to M3U, or previewed.
+
+### `_server_for_user(plex, user_id) -> PlexServer`
+* `user_id == 0` → return the admin `plex` directly (no API call)
+* Otherwise → `user.get_token(plex.machineIdentifier)` to obtain a server-scoped token; **never** use `switchHomeUser()` (works only for Plex Home, raises 401 for shared users)
+* Every `user_id` argument must document `0 = admin` in its help text
+
+### `_non_special_episodes(show) -> List[Episode]`
+Return episodes where `seasonNumber > 0` (skip season 0 / specials).
+
+### `_resolve_playlist(user_plex, identifier) -> Playlist`
+Try `int(identifier)` → `fetchItem(rk)` (assert it is a `Playlist`); fall back to `user_plex.playlist(identifier)` by name; fail fast if not found.
+
+---
+
+## OUTPUT
+
+### `output(data, args)`
+JSON mode: `json.dumps(data, default=str)`. Otherwise: call `print_table` for list-of-dicts, else `print`.
+
+### `_cell(value) -> str`
+`str(value).strip()`.
+
+### `print_table(rows)`
+Auto-compute column widths using `_cell`; print header, divider, rows — all using `_cell` to avoid control-character artefacts.
+
+### `print_metadata(record)`
+Key-value display aligned to the widest key; used by `show-metadata`.
+
+---
+
+## COMPLETION CACHE
+
+`_write_cache(name, data)` — atomically write JSON to `~/.cache/plex.do/<name>.json` (tmp → rename); silently ignore `OSError`. Called as a side effect in: `list-libraries` → `libraries.json`; `list-titles <id>` → `titles.<id>.json`; `list-users` → `users.json`; `list-playlists <uid>` → `playlists.<uid>.json`.
+
+---
+
+## PLAYLIST BUILDING MODEL
+
+All build commands must:
+1. Fully construct item list in memory
+2. Validate non-empty
+3. Print numbered preview table using `_display_title`
+4. Make exactly ONE `plex.createPlaylist(name, items=items)` call
+
+`finalize_playlist(plex, name, items, args)` enforces this; respects `--dry-run`.
+
+---
+
+## M3U EXPORT — `_write_m3u(items, path)`
+
+* Plex server filesystem paths only: `item.media[].parts[].file`
+* Skip items with no file path (no placeholder)
+* Multiple parts → include all
+* Duration: `item.duration` ms → seconds; fallback `-1`
+* `#EXTINF` title: `_display_title(item)`
+* Format:
+  ```
+  #EXTM3U
+  #EXTINF:<seconds>,<display title>
+  /server/path/to/file
+  ```
+
+---
+
+## COMMANDS
+
+### `list-libraries`
+Columns: `id`, `type`, `title`. Writes `libraries.json` cache.
+
+### `list-titles <library_id> [--album ALBUM]`
+* For show/movie: `section.all()`
+* For photo libraries: `_collect_photos(section, album)` — see photo helpers below
+* Columns: `ratingKey`, `title` (via `_display_title`)
+* Writes `titles.<library_id>.json` cache
+* `--album` silently ignored with a warning for non-photo libraries
+
+### `search <user_id> <query> [--media-type TYPE] [--library-id ID]`
+* Runs as user (0 = admin)
+* Searches all libraries by default; `--library-id` scopes to one
+* `--media-type` choices: `movie show episode track photo album artist` — passed as `libtype` to `section.search()`
+* Per-library failures: log warning, continue
+* Columns: `ratingKey`, `libraryId` (from `item.librarySectionID`), `type`, `title` (via `_display_title`)
+
+### `list-users`
+Columns: `id`, `title`. Writes `users.json` cache.
+
+### `list-playlists <user_id>`
+Columns: `ratingKey`, `title`, `items`. Writes `playlists.<user_id>.json` cache.
+
+### `list-playlist <user_id> <playlist|ratingKey> [--m3u PATH]`
+Accepts playlist by name or ratingKey (via `_resolve_playlist`). Columns: `index`, `ratingKey`, `title`. Optional M3U export after listing.
+
+### `list-show <rating_key> [--m3u PATH]`
+Fail fast if item is not a `Show`. Uses `_non_special_episodes`. Columns: `index`, `ratingKey`, `season`, `episode`, `title`. Optional M3U export.
+
+### `show-metadata <rating_key>`
+Dispatch to type-specific builder; all share a base set of fields:
+`ratingKey, type, title, year, contentRating, rating, duration` (ms→`H:MM:SS` via `_format_duration`), `addedAt, updatedAt, summary`.
+
+Extra fields per type:
+* `episode`: `show, season, episode, airDate, studio`
+* `movie`: `studio, airDate, tagline, genres, directors`
+* `show`: `studio, firstAired, seasons, episodes, genres, network`
+* `track`: `album, artist, trackNumber`
+
+Use `_METADATA_BUILDERS` dict keyed by `item.type`, fallback to base. JSON mode: `json.dumps(record)`. Otherwise: `print_metadata(record)`.
+
+### `build-interleaved <name> <ratingKey...> [--m3u PATH]`
+Round-robin episodes across shows using `_non_special_episodes`. `finalize_playlist` then optional M3U.
+
+### `build-chronological <name> <ratingKey...> [--m3u PATH]`
+Shows and movies; skip season 0. Sort globally by resolved air date. `finalize_playlist` then optional M3U.
+
+#### Missing date resolution (implement exactly):
+1. Look only within the same season
+2. Collect up to 6 previous + 6 next episodes with known dates (by `episode.index`)
+3. Require ≥ 3 known dates (→ ≥ 2 intervals); else fallback
+4. Compute timedelta intervals between adjacent sorted dates
+5. Require ≥ 2 intervals; else fallback
+6. `statistics.median` of interval seconds → `timedelta`
+7. Estimate from latest-prev (+median) and/or earliest-next (−median); if both → average timestamps
+8. Still unresolved → interactive prompt (YYYY-MM-DD; show last resolved date as example)
+
+### `build-randomize <user_id> <source> <dest> [--m3u PATH]`
+Materialize source playlist, Fisher-Yates shuffle via `secrets.randbelow`, `finalize_playlist`, optional M3U.
+
+### `copy-playlist-all-users <source_user_id> <source_playlist>`
+Source resolved via `_server_for_user(plex, source_user_id)`. Copy to every user from `account.users()`. Naming rules (per target): name absent → create; name exists → try `+ " admin copy"`; that also exists → overwrite (delete + recreate). Warn per-user on failure; don't abort.
+
+### `copy-playlist-to-user <source_user_id> <source_playlist> <user_id> <dest>`
+Same source resolution and naming rules; single target user.
+
+### `export-playlist <user_id> <playlist> <path>`
+`path` is a required positional (not `--m3u`). Fetch playlist, reject if empty, call `_write_m3u`, print confirmation.
+
+### `remove-playlist <user_id> <playlist>`
+Delete playlist; respect `--dry-run`; fail fast if not found.
+
+### `append-playlist <user_id> <playlist> <ratingKey...>`
+Fetch each item (fail fast on unknown key), print numbered preview, respect `--dry-run`, call `playlist.addItems(new_items)`.
+
+### `export-titles <library_id> <output_path> [--sort alpha|date|random] [--album ALBUM]`
+Sort modes:
+* `alpha` (default): episodes → show title / season / episode index; movies/photos → title
+* `date`: `originallyAvailableAt`, fallback `addedAt` (useful for photos); undated → sort last using `datetime.datetime.max`
+* `random`: Fisher-Yates via `_shuffle_list`
+
+Output by library type:
+* `show` / `movie` → `_write_m3u`
+* `photo` → `_write_gallery_html` (see below)
+
+`--album` is silently ignored (with warning) for non-photo libraries.
+
+### `write-config-example`
+Write template INI to `CONFIG_PATH`; create parent dirs; no Plex connection required.
+
+---
+
+## PHOTO LIBRARY HELPERS
+
+### `_collect_photos(section, album=None) -> List[Photo]`
+`section.search(libtype="photo")`. If `album` given: filter by `parentTitle` case-insensitively; fail fast with clear message if no matches, suggesting `list-titles` to browse albums.
+
+### `_collect_library_items(section, album=None) -> List[MediaItem]`
+`show` → walk `_non_special_episodes`; `movie` → `section.all()`; `photo` → `_collect_photos(section, album)`; else `sys.exit` with supported types listed.
+
+---
+
+## PHOTO GALLERY — `_write_gallery_html(plex, photos, output_path, library_title)`
+
+Generates a single self-contained `.html` file using Spotlight.js from jsDelivr CDN.
+
+* **Image URLs**: `plex.url(photo.thumb, includeToken=True)` for thumbnails; `plex.url(part.key, includeToken=True)` for full-res (fallback to thumb if no parts)
+* **Grouping**: by `parentTitle` (album), sorted alphabetically; photos with no album → `"Uncategorised"`
+* **Design**: near-black `#0d0d0d` background; warm amber `#a0835c` library title; small-caps muted album headings with photo count; `192×192px` cover-fit grid with `scale(1.06)` hover; `loading="lazy"` on every thumbnail; `prefers-reduced-motion` respected
+* **Structure**: extract helpers `_gallery_css()`, `_gallery_photo_anchor(plex, photo)`, `_gallery_album_section(plex, album_name, photos)`, `_group_photos_by_album(photos)` to keep `_write_gallery_html` under pylint's local-variable limit
+* Spotlight `data-title` = photo title; `data-description` = `originallyAvailableAt` date
+* Gallery title in single-album export: `"Library — Album"`
+
+---
+
+## ARGPARSE STRUCTURE
+
+Keep `build_parser` under pylint's statement limit by extracting `_register_copy_and_mutation_subparsers(sub)` for: `copy-playlist-all-users`, `copy-playlist-to-user`, `export-playlist`, `remove-playlist`, `append-playlist`, `export-titles`, `write-config-example`.
+
+Commands with `--m3u`: `list-playlist`, `list-show`, `build-interleaved`, `build-chronological`, `build-randomize`.
+
+---
+
+## ERROR HANDLING
+
+`sys.exit()` with clear messages for: missing config, missing token, unknown ratingKey, wrong media type, playlist not found, user not found, unsupported library type, album not found. No bare `except`.
+
+---
+
+## BASH COMPLETION — `plex.do.bash-completion.inc`
+
+* Works without the `bash-completion` package — initialise using `COMP_WORDS`, `COMP_CWORD`, `cur`, `prev` directly
+* 15-minute TTL cache at `~/.cache/plex.do/`; `stat` portable between Linux (`-c %Y`) and macOS (`-f %m`)
+* Background refresh via `_plexdo_bg_refresh` (runs `plex.do <cmd> <args> >/dev/null 2>&1 &` with `disown`)
+* `_plexdo_json_candidates cache field` — Python one-liner reads cache and emits matching values
+* File completion uses `compgen -f` (no `_filedir` dependency)
+
+### Completion helpers:
+* `_plexdo_complete_user_id` → `0` + IDs from `users.json`
+* `_plexdo_complete_library_id` → IDs from `libraries.json`; background refresh if stale
+* `_plexdo_complete_rating_key` → ratingKeys from all `titles.*.json`; per-library background refresh for stale files; triggers `list-libraries` then per-library `list-titles` if no cache at all
+* `_plexdo_complete_playlist(user_id)` → titles from `playlists.<uid>.json`
+* `_plexdo_complete_playlist_id_or_name(user_id)` → both ratingKeys AND titles, deduplicated — used for `list-playlist` which accepts either form
+* `_plexdo_complete_album(library_id)` → unique album prefixes extracted from `titles.<id>.json` entries by splitting `"Album - Photo Title"` on `" - "`
+* `_plexdo_find_cmd` → first non-flag positional word
+* `_plexdo_positional_count(cmd)` → count of non-flag positionals after the command; skips `--m3u <value>` pairs
+* `_plexdo_nth_positional(cmd, n)` → the Nth non-flag positional after the command
+
+### Per-command completion:
+| Command | pos 0 | pos 1 | pos 2 | pos 3 | flags |
+|---|---|---|---|---|---|
+| `list-titles` | library_id | — | — | — | `--album` → album names for pos-0 library |
+| `search` | user_id | free text | — | — | `--media-type` → type list; `--library-id` → library IDs |
+| `list-playlists` | user_id | — | — | — | global |
+| `list-playlist` | user_id | playlist-id-or-name | — | — | `--m3u` → file |
+| `list-show` | rating_key | — | — | — | `--m3u` → file |
+| `show-metadata` | rating_key | — | — | — | global |
+| `build-interleaved` | free (name) | rating_key… | — | — | `--m3u` → file |
+| `build-chronological` | free (name) | rating_key… | — | — | `--m3u` → file |
+| `build-randomize` | user_id | playlist | free (dest) | — | `--m3u` → file |
+| `copy-playlist-all-users` | user_id | playlist | — | — | global |
+| `copy-playlist-to-user` | user_id | playlist | user_id | playlist | global |
+| `remove-playlist` | user_id | playlist | — | — | global |
+| `export-playlist` | user_id | playlist | file path | — | global |
+| `append-playlist` | user_id | playlist | rating_key… | — | global |
+| `export-titles` | library_id | file path | — | — | `--sort` → `alpha date random`; `--album` → album names for pos-0 library |
+
+Register as: `complete -F _plexdo_complete plex.do` and `complete -F _plexdo_complete plex_do`.
+
+---
+
+## DELIVERABLES
+
+1. `plex.do` — complete executable Python script (~1700 lines)
+2. `requirements.txt` — `PlexAPI>=4.15.10`
+3. `plex.do.bash-completion.inc` — installable via `source` or drop into `~/.local/share/bash-completion/completions/`
