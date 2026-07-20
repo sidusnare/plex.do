@@ -240,7 +240,7 @@ def cmd_write_config_example(_plex: Optional[PlexServer], _args: argparse.Namesp
     example = (
         "[plex]\n"
         "url = http://localhost:32400\n"
-        "token_path = ~/usr/tmp/.fsec/plex_token\n"
+        "token_path = /tmp/plex_token\n"
     )
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(example, encoding="utf-8")
