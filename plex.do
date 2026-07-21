@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
+import requests
+
 from plexapi.audio import Track
 from plexapi.photo import Photo
 from plexapi.exceptions import NotFound
@@ -240,7 +242,7 @@ def cmd_write_config_example(_plex: Optional[PlexServer], _args: argparse.Namesp
     example = (
         "[plex]\n"
         "url = http://localhost:32400\n"
-        "token_path = /tmp/plex_token\n"
+        "token_path = ~/usr/tmp/.fsec/plex_token\n"
     )
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(example, encoding="utf-8")
@@ -270,19 +272,29 @@ def cmd_list_libraries(plex: PlexServer, args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 def cmd_list_titles(plex: PlexServer, args: argparse.Namespace) -> None:
-    """List titles in a library."""
+    """List titles in a library, with optional album filter for photo libraries."""
     library_id = args.library_id
     try:
         section = plex.library.sectionByID(library_id)
     except NotFound:
         sys.exit(f"Library ID not found: {library_id}")
 
+    album: Optional[str] = getattr(args, "album", None)
+    if album and section.type != "photo":
+        LOG.warning("--album is only applicable to photo libraries; ignoring.")
+        album = None
+
+    if section.type == "photo":
+        items = _collect_photos(section, album)
+    else:
+        items = list(section.all())
+
     rows = [
         {
             "ratingKey": normalize_rating_key(item.ratingKey),
             "title": _display_title(item),
         }
-        for item in section.all()
+        for item in items
     ]
     _write_cache(f"titles.{library_id}", rows)
     output(rows, args)
@@ -914,11 +926,41 @@ _LIBRARY_ITEM_TYPES = ("show", "movie", "photo")
 _DATE_SENTINEL = datetime.datetime.max  # sort undated items last
 
 
-def _collect_library_items(section: Any) -> List[MediaItem]:
+def _collect_photos(
+    section: Any, album: Optional[str] = None
+) -> List[Photo]:
+    """Return photos from a photo library section, optionally filtered by album.
+
+    Walks section.all() (albums) then album.photos() — the same pattern used
+    for show libraries.  section.search(libtype="photo") is NOT used because
+    Plex requires a non-empty query string and returns nothing for an empty one.
+
+    If *album* is given, only photos from the matching album are returned
+    (case-insensitive title match).  Fails fast if the name is not found.
+    """
+    photos: List[Photo] = []
+    for palbum in section.all():
+        album_title = _cell(getattr(palbum, "title", "") or "")
+        if album is not None and album_title.lower() != album.lower():
+            continue
+        photos.extend(palbum.photos())
+
+    if album is not None and not photos:
+        sys.exit(
+            f"Album '{album}' not found in library '{section.title}'. "
+            "Use list-titles to see available albums."
+        )
+    return photos
+
+
+def _collect_library_items(
+    section: Any, album: Optional[str] = None
+) -> List[MediaItem]:
     """Expand a library section into a flat list of playable items.
 
     TV show libraries are walked show -> season (>0) -> episode.
     Movie libraries return movies directly.
+    Photo libraries return photos, optionally filtered to a single album.
     """
     if section.type == "show":
         items: List[MediaItem] = []
@@ -928,7 +970,7 @@ def _collect_library_items(section: Any) -> List[MediaItem]:
     if section.type == "movie":
         return list(section.all())
     if section.type == "photo":
-        return list(section.search(libtype="photo"))
+        return _collect_photos(section, album)  # type: ignore[return-value]
     sys.exit(
         f"Library type '{section.type}' is not supported. "
         f"Supported types: {', '.join(_LIBRARY_ITEM_TYPES)}."
@@ -969,17 +1011,12 @@ def _apply_sort(items: List[MediaItem], sort_mode: str) -> List[MediaItem]:
     return sorted(items, key=_alpha_sort_key)  # default: "alpha"
 
 
-def _photo_thumb_url(plex: PlexServer, photo: Photo) -> str:
-    """Return the Plex-served thumbnail URL for a photo, token included."""
-    return plex.url(photo.thumb, includeToken=True)
-
-
-def _photo_full_url(plex: PlexServer, photo: Photo) -> str:
-    """Return the Plex-served full-resolution URL for a photo, token included."""
+def _photo_file_path(photo: Photo) -> Optional[str]:
+    """Return the server filesystem path for a photo, or None if unavailable."""
     try:
-        return plex.url(photo.media[0].parts[0].key, includeToken=True)
+        return photo.media[0].parts[0].file or None
     except (IndexError, AttributeError):
-        return _photo_thumb_url(plex, photo)
+        return None
 
 
 def _gallery_css() -> str:
@@ -1067,23 +1104,32 @@ def _gallery_css() -> str:
     """
 
 
-def _gallery_photo_anchor(plex: PlexServer, photo: Photo) -> List[str]:
-    """Return HTML lines for a single Spotlight.js photo anchor."""
+def _gallery_photo_anchor(photo: Photo) -> List[str]:
+    """Return HTML lines for a single Spotlight.js photo anchor.
+
+    Uses the Plex server filesystem path for both href and src so no
+    references to the Plex HTTP server appear in the output.  Photos with
+    no resolvable path are skipped (returns an empty list), consistent with
+    _write_m3u behaviour.
+    """
+    file_path = _photo_file_path(photo)
+    if not file_path:
+        LOG.debug("Skipping photo '%s': no server file path", photo.title)
+        return []
     esc   = html_lib.escape
-    thumb = esc(_photo_thumb_url(plex, photo))
-    full  = esc(_photo_full_url(plex, photo))
+    path  = esc(file_path)
     title = esc(_cell(photo.title or ""))
     taken = esc(str(getattr(photo, "originallyAvailableAt", "") or ""))
     return [
-        f'      <a class="spotlight" href="{full}"',
+        f'      <a class="spotlight" href="{path}"',
         f'         data-title="{title}" data-description="{taken}">',
-        f'        <img src="{thumb}" loading="lazy" alt="{title}">',
+        f'        <img src="{path}" loading="lazy" alt="{title}">',
         "      </a>",
     ]
 
 
 def _gallery_album_section(
-    plex: PlexServer, album_name: str, album_photos: List[Photo]
+    album_name: str, album_photos: List[Photo]
 ) -> List[str]:
     """Return HTML lines for one album section."""
     esc = html_lib.escape
@@ -1096,7 +1142,7 @@ def _gallery_album_section(
         '    <div class="grid spotlight-group">',
     ]
     for photo in album_photos:
-        lines.extend(_gallery_photo_anchor(plex, photo))
+        lines.extend(_gallery_photo_anchor(photo))
     lines += ["    </div>", "  </section>"]
     return lines
 
@@ -1111,7 +1157,6 @@ def _group_photos_by_album(photos: List[Photo]) -> Dict[str, List[Photo]]:
 
 
 def _write_gallery_html(
-    plex: PlexServer,
     photos: List[Photo],
     output_path: str,
     library_title: str,
@@ -1119,7 +1164,8 @@ def _write_gallery_html(
     """Write a Spotlight.js HTML5 gallery for a list of Photo objects.
 
     Photos are grouped by album (parentTitle).  The gallery uses CDN-hosted
-    Spotlight.js for the lightbox and Plex server URLs for all images.
+    Spotlight.js for the lightbox; all image references are server filesystem
+    paths — no Plex HTTP URLs appear in the output.
     """
     esc  = html_lib.escape
     cdn  = "https://cdn.jsdelivr.net/npm/spotlight.js"
@@ -1139,7 +1185,7 @@ def _write_gallery_html(
     )
     albums = _group_photos_by_album(photos)
     body   = [l for name in sorted(albums)
-               for l in _gallery_album_section(plex, name, albums[name])]
+               for l in _gallery_album_section(name, albums[name])]
     foot   = [f'  <script src="{cdn}/dist/js/spotlight.bundle.min.js"></script>',
               "</body>", "</html>", ""]
 
@@ -1158,18 +1204,24 @@ def cmd_export_titles(plex: PlexServer, args: argparse.Namespace) -> None:
     LOG.info(
         "Collecting items from library '%s' (type=%s)", section.title, section.type
     )
-    items = _collect_library_items(section)
+    album: Optional[str] = getattr(args, "album", None)
+    if album and section.type != "photo":
+        LOG.warning("--album is only applicable to photo libraries; ignoring.")
+        album = None
+
+    items = _collect_library_items(section, album)
 
     if not items:
         sys.exit(f"Library '{section.title}' contains no items.")
 
     sorted_items = _apply_sort(items, args.sort)
+    gallery_title = f"{section.title} — {album}" if album else section.title
     LOG.info(
         "Exporting %d item(s) sorted by '%s' to %s",
         len(sorted_items), args.sort, args.output_path,
     )
     if section.type == "photo":
-        _write_gallery_html(plex, sorted_items, args.output_path, section.title)
+        _write_gallery_html(sorted_items, args.output_path, gallery_title)
     else:
         _write_m3u(sorted_items, args.output_path)
         print(f"Exported {len(sorted_items)} items to: {args.output_path}")
@@ -1335,6 +1387,138 @@ def cmd_remove_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Command: read
+# ---------------------------------------------------------------------------
+
+def _stream_to_stdout(url: str, label: str) -> None:
+    """Stream a URL to binary stdout, handling a closed pipe gracefully."""
+    if sys.stdout.isatty():
+        LOG.warning(
+            "stdout is a terminal — pipe into a player, e.g.: "
+            "plex.do read <lib> <key> | mpv -"
+        )
+    LOG.info("Streaming: %s", label)
+    try:
+        with requests.get(url, stream=True, timeout=30) as resp:
+            resp.raise_for_status()
+            for chunk in resp.iter_content(chunk_size=65536):
+                sys.stdout.buffer.write(chunk)
+        sys.stdout.buffer.flush()
+    except BrokenPipeError:
+        # Downstream player exited (e.g. user quit mpv) — not an error.
+        LOG.debug("Downstream closed pipe; stream ended.")
+    except requests.HTTPError as exc:
+        sys.exit(f"HTTP error while streaming: {exc}")
+
+
+def cmd_read(plex: PlexServer, args: argparse.Namespace) -> None:
+    """Stream a media file to stdout by library ID and ratingKey."""
+    if args.json:
+        LOG.warning("--json has no effect on the read command; binary data goes to stdout.")
+
+    rating_key = normalize_rating_key(args.rating_key)
+    try:
+        item = plex.fetchItem(rating_key)
+    except NotFound:
+        sys.exit(f"ratingKey not found: {rating_key}")
+
+    item_lib_id = normalize_rating_key(getattr(item, "librarySectionID", 0))
+    if item_lib_id != args.library_id:
+        sys.exit(
+            f"ratingKey {rating_key} belongs to library {item_lib_id}, "
+            f"not library {args.library_id}."
+        )
+
+    if not getattr(item, "media", None):
+        sys.exit(f"No media attached to ratingKey: {rating_key}")
+
+    parts = item.media[0].parts
+    if not parts:
+        sys.exit(f"No parts found for ratingKey: {rating_key}")
+
+    if len(item.media) > 1 or len(parts) > 1:
+        LOG.warning(
+            "Multiple media/parts found; streaming first part only. "
+            "Use list-show or show-metadata to inspect."
+        )
+
+    part = parts[0]
+    label = _display_title(item)
+    url = plex.url(part.key, includeToken=True)
+
+    LOG.info("File : %s", part.file or "(no server path)")
+    LOG.info("URL  : %s", url)
+
+    if args.dry_run:
+        print(f"title : {label}", file=sys.stderr)
+        print(f"file  : {part.file or '(none)'}", file=sys.stderr)
+        print(f"url   : {url}", file=sys.stderr)
+        return
+
+    _stream_to_stdout(url, label)
+
+
+# ---------------------------------------------------------------------------
+# Command: rescan
+# ---------------------------------------------------------------------------
+
+def _cancel_all_scans(plex: PlexServer) -> None:
+    """Cancel any running or queued scan on every library section."""
+    for section in plex.library.sections():
+        try:
+            section.cancelUpdate()
+            LOG.debug("Cancelled scan on '%s'", section.title)
+        except Exception as exc:  # pylint: disable=broad-except
+            LOG.debug("cancelUpdate on '%s' raised %s (may already be idle)", section.title, exc)
+
+
+def _activity_rows(plex: PlexServer) -> List[Dict[str, Any]]:
+    """Return scan-related activity rows from the Plex server."""
+    rows = []
+    for act in plex.activities:
+        rows.append({
+            "type":     _cell(getattr(act, "type",     "") or ""),
+            "title":    _cell(getattr(act, "title",    "") or ""),
+            "subtitle": _cell(getattr(act, "subtitle", "") or ""),
+            "progress": getattr(act, "progress", ""),
+            "uuid":     _cell(getattr(act, "uuid",     "") or ""),
+        })
+    return rows
+
+
+def cmd_rescan(plex: PlexServer, args: argparse.Namespace) -> None:
+    """Trigger a library rescan, optionally cancelling pending scans first."""
+    if args.status:
+        rows = _activity_rows(plex)
+        if not rows:
+            print("No active scan jobs.", file=sys.stderr)
+        else:
+            output(rows, args)
+        return
+
+    if args.library_id is None:
+        sys.exit("library_id is required unless --status / -s is used.")
+
+    try:
+        section = plex.library.sectionByID(args.library_id)
+    except NotFound:
+        sys.exit(f"Library ID not found: {args.library_id}")
+
+    if args.now:
+        LOG.info("Cancelling all pending scans before rescan.")
+        if not args.dry_run:
+            _cancel_all_scans(plex)
+
+    LOG.info("Triggering rescan of library '%s' (id=%d)", section.title, args.library_id)
+    if args.dry_run:
+        LOG.info("--dry-run: skipping scan trigger.")
+        return
+
+    section.update()
+    print(f"Rescan triggered for library: {section.title!r}")
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -1378,6 +1562,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_lt.add_argument(
         "library_id", type=int,
         help="Library ID (int). Obtain with list-libraries.",
+    )
+    p_lt.add_argument(
+        "--album", default=None, metavar="ALBUM",
+        help="Photo libraries only: restrict listing to a single album name.",
     )
 
     # search
@@ -1453,6 +1641,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_sm.add_argument(
         "rating_key", type=int,
         help="Item ratingKey (int). Obtain with list-titles or list-show.",
+    )
+
+    # read
+    p_rd = sub.add_parser(
+        "read",
+        help=(
+            "Stream a media file to stdout. Pipe into a player: "
+            "plex.do read <lib> <key> | mpv -"
+        ),
+    )
+    p_rd.add_argument(
+        "library_id", type=int,
+        help="Library ID (int). Obtain with list-libraries.",
+    )
+    p_rd.add_argument(
+        "rating_key", type=int,
+        help="Item ratingKey (int). Obtain with list-titles or list-show.",
+    )
+
+    # rescan
+    p_rs = sub.add_parser(
+        "rescan",
+        help="Trigger a library rescan, with optional status view or flush-and-rescan.",
+    )
+    p_rs.add_argument(
+        "library_id", type=int, nargs="?", default=None,
+        help="Library ID (int). Obtain with list-libraries. Required unless -s / --status is used.",
+    )
+    p_rs.add_argument(
+        "-s", "--status", action="store_true", default=False,
+        help="Print all active scan jobs with their type, progress, and subtitle.",
+    )
+    p_rs.add_argument(
+        "-n", "--now", action="store_true", default=False,
+        help="Cancel all pending scans on every library before triggering the rescan.",
     )
 
     # build-interleaved
@@ -1571,6 +1794,10 @@ def _register_copy_and_mutation_subparsers(
             "'random' = randomised."
         ),
     )
+    p_et.add_argument(
+        "--album", default=None, metavar="ALBUM",
+        help="Photo libraries only: restrict export to a single album name.",
+    )
 
     sub.add_parser("write-config-example", help="Write a template config file.")
 
@@ -1588,6 +1815,8 @@ COMMANDS_REQUIRING_PLEX: Sequence[str] = (
     "list-playlist",
     "list-show",
     "show-metadata",
+    "read",
+    "rescan",
     "build-interleaved",
     "build-chronological",
     "build-randomize",
@@ -1608,6 +1837,8 @@ COMMAND_MAP = {
     "list-playlist": cmd_list_playlist,
     "list-show": cmd_list_show,
     "show-metadata": cmd_show_metadata,
+    "read": cmd_read,
+    "rescan": cmd_rescan,
     "build-interleaved": cmd_build_interleaved,
     "build-chronological": cmd_build_chronological,
     "build-randomize": cmd_build_randomize,

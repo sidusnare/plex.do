@@ -135,13 +135,38 @@ _plexdo_complete_playlist() {
     mapfile -t COMPREPLY < <( _plexdo_json_candidates "$cache" "title" )
 }
 
+# Album names for a given library_id — drawn from the titles cache.
+# Emits the unique set of parentTitle values (album names) stored in the cache.
+_plexdo_complete_album() {
+    local lib_id="$1"
+    local cache="$_PLEXDO_CACHE/titles.${lib_id}.json"
+    _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-titles "$lib_id"
+    mapfile -t COMPREPLY < <(
+        python3 - "$cur" "$cache" 2>/dev/null << 'PYEOF'
+import json, sys
+cur, path = sys.argv[1], sys.argv[2]
+try:
+    seen = set()
+    for r in json.load(open(path, encoding="utf-8")):
+        t = str(r.get("title", ""))
+        # titles for photo entries are "Album - Photo", strip after " - "
+        album = t.split(" - ")[0] if " - " in t else t
+        if album and album not in seen and album.startswith(cur):
+            seen.add(album)
+            print(album)
+except Exception:
+    pass
+PYEOF
+    )
+}
+
 # ---------------------------------------------------------------------------
 # Positional-argument introspection helpers
 # ---------------------------------------------------------------------------
 
 _plexdo_commands() {
     echo "list-libraries list-titles list-users list-playlists list-playlist \
-list-show show-metadata search build-interleaved build-chronological build-randomize \
+list-show show-metadata search read rescan build-interleaved build-chronological build-randomize \
 copy-playlist-all-users copy-playlist-to-user export-playlist remove-playlist \
 append-playlist export-titles write-config-example"
 }
@@ -243,12 +268,19 @@ _plexdo_complete() {
         list-libraries|list-users|write-config-example)
             COMPREPLY=() ;;
 
-        # <library_id>
+        # <library_id> [--album ALBUM]
         list-titles)
-            case $pos in
-                0) _plexdo_complete_library_id ;;
-                *) COMPREPLY=() ;;
-            esac ;;
+            if [[ "$prev" == "--album" ]]; then
+                lib_id="$(_plexdo_nth_positional "$cmd" 0)"
+                _plexdo_complete_album "$lib_id"
+            elif [[ "$cur" == --* ]]; then
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --album" -- "$cur") )
+            else
+                case $pos in
+                    0) _plexdo_complete_library_id ;;
+                    *) COMPREPLY=() ;;
+                esac
+            fi ;;
 
         # <user_id>
         list-playlists)
@@ -270,6 +302,25 @@ _plexdo_complete() {
         list-show|show-metadata)
             case $pos in
                 0) _plexdo_complete_rating_key ;;
+                *) COMPREPLY=() ;;
+            esac ;;
+
+        # [library_id] [-s/--status] [-n/--now]
+        rescan)
+            if [[ "$cur" == --* || "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --status -s --now -n" -- "$cur") )
+            else
+                case $pos in
+                    0) _plexdo_complete_library_id ;;
+                    *) COMPREPLY=() ;;
+                esac
+            fi ;;
+
+        # <library_id> <rating_key>
+        read)
+            case $pos in
+                0) _plexdo_complete_library_id ;;
+                1) _plexdo_complete_rating_key ;;
                 *) COMPREPLY=() ;;
             esac ;;
 
@@ -353,12 +404,15 @@ _plexdo_complete() {
                 esac
             fi ;;
 
-        # <library_id> <path> [--sort alpha|date|random]
+        # <library_id> <path> [--sort alpha|date|random] [--album ALBUM]
         export-titles)
             if [[ "$prev" == "--sort" ]]; then
                 COMPREPLY=( $(compgen -W "alpha date random" -- "$cur") )
+            elif [[ "$prev" == "--album" ]]; then
+                lib_id="$(_plexdo_nth_positional "$cmd" 0)"
+                _plexdo_complete_album "$lib_id"
             elif [[ "$cur" == --* ]]; then
-                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --sort" -- "$cur") )
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --sort --album" -- "$cur") )
             else
                 case $pos in
                     0) _plexdo_complete_library_id ;;
