@@ -1,0 +1,7 @@
+include Makefile
+include README.md
+include LICENSE
+include requirements.txt
+include AI.prompt.md
+recursive-include completions *
+recursive-include src/plexdo/data *

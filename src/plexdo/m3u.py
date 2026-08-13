@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""M3U export using Plex server filesystem paths."""
+
+from pathlib import Path
+from typing import List
+
+from plexdo.constants import LOG, MediaItem
+from plexdo.titles import _display_title
+
+
+def _write_m3u(sorted_items: List[MediaItem], path: str) -> None:
+    """Write an M3U playlist using Plex server filesystem paths."""
+    lines: List[str] = ["#EXTM3U"]
+    for item in sorted_items:
+        duration_ms = getattr(item, "duration", None)
+        seconds = int(duration_ms / 1000) if duration_ms else -1
+        for media in getattr(item, "media", []):
+            for part in getattr(media, "parts", []):
+                file_path = getattr(part, "file", None)
+                if not file_path:
+                    continue
+                lines.append(f"#EXTINF:{seconds},{_display_title(item)}")
+                lines.append(file_path)
+
+    output_path = Path(path).expanduser()
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    LOG.info("M3U written to %s (%d lines)", output_path, len(lines))

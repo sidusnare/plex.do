@@ -1,0 +1,306 @@
+#compdef plex.do plexdo
+# zsh completion for plex.do
+#
+# Installation:
+#   Per user:    cp _plex.do ~/.local/share/zsh/site-functions/
+#                (ensure that directory is in $fpath, then: compinit)
+#   System-wide: cp _plex.do /usr/local/share/zsh/site-functions/
+#
+# Completion for user IDs, library IDs, rating keys, playlists, and albums is
+# read from the 15-minute cache under ~/.cache/plex.do that the list commands
+# populate. A stale cache is refreshed in the background so completion never
+# blocks; the values shown come from whatever is cached at that moment.
+
+(( $+functions[_plexdo_cache_dir] )) || _plexdo_cache_dir() {
+  print -r -- "${XDG_CACHE_HOME:-$HOME/.cache}/plex.do"
+}
+
+# Return 0 when the cache file exists and is under 15 minutes old.
+_plexdo_cache_fresh() {
+  local file=$1 now mtime
+  [[ -f $file ]] || return 1
+  now=$(date +%s)
+  mtime=$(stat -c %Y "$file" 2>/dev/null) || mtime=$(stat -f %m "$file" 2>/dev/null) || return 1
+  (( now - mtime < 900 ))
+}
+
+# Run a plex.do list command in the background purely for its cache side effect.
+_plexdo_refresh() {
+  local prog=${words[1]:-plex.do}
+  ( "$prog" "$@" >/dev/null 2>&1 & ) 2>/dev/null
+}
+
+# Emit "value" or "value:description" lines from a JSON cache file.
+_plexdo_read_cache() {
+  local file=$1 field=$2 desc=$3
+  [[ -f $file ]] || return
+  python3 - "$file" "$field" "$desc" <<'PY' 2>/dev/null
+import json, sys
+path, field, desc = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    rows = json.load(open(path, encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+for row in rows:
+    value = str(row.get(field, "")).strip()
+    if not value:
+        continue
+    if desc:
+        label = str(row.get(desc, "")).strip().replace(":", " ")
+        print(f"{value}:{label}" if label else value)
+    else:
+        print(value)
+PY
+}
+
+_plexdo_users() {
+  local cache="$(_plexdo_cache_dir)/users.json"
+  _plexdo_cache_fresh $cache || _plexdo_refresh list-users
+  local -a ids titles
+  ids=( '0:admin account' ${(f)"$(_plexdo_read_cache $cache id title)"} )
+  titles=( ${(f)"$(_plexdo_read_cache $cache title '')"} )
+  _describe -t user-ids 'user id' ids
+  [[ -n $titles ]] && _describe -t user-titles 'user title' titles
+}
+
+_plexdo_libraries() {
+  local cache="$(_plexdo_cache_dir)/libraries.json"
+  _plexdo_cache_fresh $cache || _plexdo_refresh list-libraries
+  local -a libs
+  libs=( ${(f)"$(_plexdo_read_cache $cache id title)"} )
+  _describe -t libraries 'library' libs
+}
+
+_plexdo_rating_keys() {
+  local dir="$(_plexdo_cache_dir)" file lib
+  local -a keys
+  for file in $dir/titles.*.json(N); do
+    if ! _plexdo_cache_fresh $file; then
+      lib=${${file:t}#titles.}; lib=${lib%.json}
+      _plexdo_refresh list-titles $lib
+    fi
+    keys+=( ${(f)"$(_plexdo_read_cache $file ratingKey title)"} )
+  done
+  if (( ! ${#keys} )); then
+    _plexdo_refresh list-libraries
+    _message 'rating key (run list-titles <library_id> to populate completion)'
+    return
+  fi
+  _describe -t rating-keys 'rating key' keys
+}
+
+# $1 is the user id or title already typed on the command line.
+_plexdo_playlists() {
+  local user=${1:-0} dir="$(_plexdo_cache_dir)"
+  local cache="$dir/playlists.${user}.json"
+  _plexdo_cache_fresh $cache || _plexdo_refresh list-playlists $user
+  local -a names
+  names=( ${(f)"$(_plexdo_read_cache $cache title '')"} )
+  if (( ${#names} )); then
+    _describe -t playlists 'playlist' names
+  else
+    _message 'playlist title'
+  fi
+}
+
+# Playlists by title or ratingKey, for list-playlist which accepts either.
+_plexdo_playlists_or_keys() {
+  local user=${1:-0} cache="$(_plexdo_cache_dir)/playlists.${user}.json"
+  _plexdo_cache_fresh $cache || _plexdo_refresh list-playlists $user
+  local -a names keys
+  names=( ${(f)"$(_plexdo_read_cache $cache title '')"} )
+  keys=( ${(f)"$(_plexdo_read_cache $cache ratingKey title)"} )
+  [[ -n $names ]] && _describe -t playlists 'playlist' names
+  [[ -n $keys ]] && _describe -t playlist-keys 'playlist ratingKey' keys
+}
+
+# Album names, derived from the "Album - Photo" titles cached for a library.
+_plexdo_albums() {
+  local lib=${1:-} cache="$(_plexdo_cache_dir)/titles.${lib}.json"
+  [[ -z $lib ]] && { _message 'album name'; return }
+  _plexdo_cache_fresh $cache || _plexdo_refresh list-titles $lib
+  local -a albums
+  albums=( ${(fu)"$(_plexdo_read_cache $cache title '' | sed -n 's/ - .*//p')"} )
+  if (( ${#albums} )); then
+    _describe -t albums 'album' albums
+  else
+    _message 'album name'
+  fi
+}
+
+# Nth (0-based) positional argument after the subcommand, "" when absent.
+_plexdo_positional() {
+  local want=$1 i=2 skip=0 count=0
+  for (( i = 2; i <= $#words - 1; i++ )); do
+    if (( skip )); then skip=0; continue; fi
+    case ${words[i]} in
+      --m3u|--album|--sort|--media-type|--library-id|-l|--library|-t|--title|\
+      -u|--username|-p|--password|-c|--code) skip=1; continue ;;
+      -*) continue ;;
+    esac
+    if (( count == want )); then print -r -- ${words[i]}; return; fi
+    (( count++ ))
+  done
+}
+
+_plexdo_commands() {
+  local -a cmds
+  cmds=(
+    'list-libraries:List all Plex libraries'
+    'list-titles:List titles in a library'
+    'list-show:List all episodes in a show'
+    'export-titles:Export an entire library to M3U or an HTML gallery'
+    'search:Search Plex for titles matching a query'
+    'list-users:List all managed/home users'
+    'list-playlists:List playlists for a user'
+    'list-playlist:List items in a specific playlist'
+    'export-playlist:Export an existing playlist to an M3U file'
+    'remove-playlist:Delete a playlist from a user'
+    'append-playlist:Append items to an existing playlist'
+    'show-metadata:Display metadata for a single item'
+    'read:Stream a media file to stdout'
+    'rescan:Trigger a library rescan or show scan status'
+    'build-interleaved:Round-robin interleaved playlist from shows'
+    'build-chronological:Date-sorted playlist from shows and movies'
+    'build-randomize:Randomize a playlist into a new one'
+    'copy-playlist-all-users:Copy a playlist to all managed users'
+    'copy-playlist-to-user:Copy a playlist to a specific user'
+    'copy-watched:Synchronise watched state between two users'
+    'login:Authenticate with plex.tv and save a token'
+    'write-config-example:Write a template config file'
+  )
+  _describe -t commands 'plex.do command' cmds
+}
+
+_plexdo_global_opts=(
+  '--json[Output machine-readable JSON instead of tables]'
+  '--verbose[Print high-level progress to stderr]'
+  '--debug[Print detailed internal logs to stderr]'
+  '--dry-run[Show what would happen without mutating Plex]'
+  '(-h --help)'{-h,--help}'[Show this help message and exit]'
+)
+
+_plexdo_subcommand() {
+  local m3u='--m3u[Also export an M3U file using Plex server paths]:m3u path:_files'
+  case ${words[1]} in
+    list-titles)
+      _arguments $_plexdo_global_opts \
+        '--album[Photo libraries only: restrict to one album]:album:{_plexdo_albums $(_plexdo_positional 0)}' \
+        '1:library id:_plexdo_libraries'
+      ;;
+    list-show)
+      _arguments $_plexdo_global_opts $m3u '1:show rating key:_plexdo_rating_keys'
+      ;;
+    show-metadata)
+      _arguments $_plexdo_global_opts '1:rating key:_plexdo_rating_keys'
+      ;;
+    export-titles)
+      _arguments $_plexdo_global_opts \
+        '--sort[Sort order]:order:(alpha date random)' \
+        '--album[Photo libraries only: restrict to one album]:album:{_plexdo_albums $(_plexdo_positional 0)}' \
+        '1:library id:_plexdo_libraries' \
+        '2:output path:_files'
+      ;;
+    search)
+      _arguments $_plexdo_global_opts \
+        '--media-type[Restrict to one media type]:type:(movie show episode track photo album artist)' \
+        '--library-id[Restrict to one library]:library id:_plexdo_libraries' \
+        '1:user:_plexdo_users' \
+        '2:query:'
+      ;;
+    list-users|list-libraries|write-config-example)
+      _arguments $_plexdo_global_opts
+      ;;
+    list-playlists)
+      _arguments $_plexdo_global_opts '1:user:_plexdo_users'
+      ;;
+    list-playlist)
+      _arguments $_plexdo_global_opts $m3u \
+        '1:user:_plexdo_users' \
+        '2:playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}'
+      ;;
+    export-playlist)
+      _arguments $_plexdo_global_opts \
+        '1:user:_plexdo_users' \
+        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '3:output path:_files'
+      ;;
+    remove-playlist)
+      _arguments $_plexdo_global_opts \
+        '1:user:_plexdo_users' \
+        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}'
+      ;;
+    append-playlist)
+      _arguments $_plexdo_global_opts \
+        '1:user:_plexdo_users' \
+        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '*:rating key:_plexdo_rating_keys'
+      ;;
+    read)
+      _arguments $_plexdo_global_opts \
+        '1:library id:_plexdo_libraries' \
+        '2:rating key:_plexdo_rating_keys'
+      ;;
+    rescan)
+      _arguments $_plexdo_global_opts \
+        '(-s --status)'{-s,--status}'[Print all active scan jobs]' \
+        '(-n --now)'{-n,--now}'[Cancel pending scans before rescanning]' \
+        '1:library id:_plexdo_libraries'
+      ;;
+    build-interleaved|build-chronological)
+      _arguments $_plexdo_global_opts $m3u \
+        '1:playlist name:' \
+        '*:rating key:_plexdo_rating_keys'
+      ;;
+    build-randomize)
+      _arguments $_plexdo_global_opts $m3u \
+        '1:user:_plexdo_users' \
+        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '3:destination playlist:'
+      ;;
+    copy-playlist-all-users)
+      _arguments $_plexdo_global_opts \
+        '(-o --overwrite)'{-o,--overwrite}'[Overwrite an existing playlist of the same name]' \
+        '1:source user:_plexdo_users' \
+        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}'
+      ;;
+    copy-playlist-to-user)
+      _arguments $_plexdo_global_opts \
+        '(-o --overwrite)'{-o,--overwrite}'[Overwrite an existing playlist of the same name]' \
+        '1:source user:_plexdo_users' \
+        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '3:target user:_plexdo_users' \
+        '4:destination playlist:'
+      ;;
+    copy-watched)
+      _arguments $_plexdo_global_opts \
+        '(-1 --one-way)'{-1,--one-way}'[Only write to the second user]' \
+        '(-l --library)'{-l,--library}'[Restrict to one library]:library id:_plexdo_libraries' \
+        '(-t --title)'{-t,--title}'[Restrict to one item]:rating key:_plexdo_rating_keys' \
+        '--unwatch[Propagate the unwatched state instead]' \
+        '1:first user:_plexdo_users' \
+        '2:second user:_plexdo_users'
+      ;;
+    login)
+      _arguments $_plexdo_global_opts \
+        '(-u --username)'{-u,--username}'[Plex username or email]:username:' \
+        '(-p --password)'{-p,--password}'[Plex password (INSECURE: visible in ps and shell history)]:password:' \
+        '(-c --code)'{-c,--code}'[Two-factor authentication code]:code:' \
+        '(-2 --two-factor)'{-2,--two-factor}'[Prompt for a two-factor code]'
+      ;;
+    *)
+      _arguments $_plexdo_global_opts
+      ;;
+  esac
+}
+
+_plex.do() {
+  local curcontext="$curcontext" state line
+  typeset -A opt_args
+  _arguments -C $_plexdo_global_opts \
+    '1:command:_plexdo_commands' \
+    '*::command argument:->subcmd'
+  [[ $state == subcmd ]] && _plexdo_subcommand
+}
+
+_plex.do "$@"
