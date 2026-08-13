@@ -4,20 +4,35 @@
 
 from typing import Any, Dict, List
 import argparse
-import json
 import sys
 import unicodedata
 
+from plexdo.formats import render
 
-def output(data: Any, args: argparse.Namespace) -> None:
-    """Emit data as JSON or delegate to print_table."""
-    if args.json:
-        print(json.dumps(data, default=str))
-    else:
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            print_table(data)
-        else:
-            print(data)
+
+def output_format(args: "argparse.Namespace") -> str:
+    """Return the selected output format, defaulting to the table renderer."""
+    return getattr(args, "format", None) or "table"
+
+
+def output(data: Any, args: "argparse.Namespace") -> None:
+    """Emit a payload in the selected format.
+
+    Accepts a single record or a list of them, so commands emitting one object
+    and commands emitting many share this one path.
+    """
+    chosen = output_format(args)
+    if chosen != "table":
+        rendered = render(data, chosen)
+        if rendered:
+            print(rendered)
+        return
+    if isinstance(data, dict):
+        print_metadata(data)
+    elif isinstance(data, list) and data and isinstance(data[0], dict):
+        print_table(data)
+    elif data or not isinstance(data, list):
+        print(data)
 
 
 def _cell(value: Any) -> str:

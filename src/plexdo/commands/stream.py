@@ -10,6 +10,7 @@ import sys
 import requests
 from plexapi.server import PlexServer
 
+from plexdo.console import output_format
 from plexdo.constants import LOG
 from plexdo.convert import normalize_rating_key
 from plexdo.titles import _display_title, fetch_item
@@ -44,8 +45,11 @@ def _stream_to_stdout(url: str, label: str) -> None:
 
 def cmd_read(plex: PlexServer, args: argparse.Namespace) -> None:
     """Stream a media file to stdout by library ID and ratingKey."""
-    if args.json:
-        LOG.warning("--json has no effect on the read command; binary data goes to stdout.")
+    if output_format(args) != "table":
+        LOG.warning(
+            "Output format flags have no effect on the read command; "
+            "binary media data goes to stdout."
+        )
 
     rating_key = normalize_rating_key(args.rating_key)
     item = fetch_item(plex, rating_key)

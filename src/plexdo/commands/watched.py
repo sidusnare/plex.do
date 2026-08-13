@@ -5,13 +5,12 @@
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 import argparse
 import datetime
-import json
 import sys
 
 from plexapi.server import PlexServer
 
 from plexdo.accounts import _server_for_user
-from plexdo.console import output
+from plexdo.console import output, output_format
 from plexdo.constants import LOG
 from plexdo.convert import normalize_rating_key, parse_date
 from plexdo.sections import resolve_sections
@@ -236,10 +235,10 @@ def cmd_copy_watched(plex: PlexServer, args: argparse.Namespace) -> None:
     plan = _build_sync_plan(states_a, states_b, args)
     if not plan:
         LOG.info("Watch state already in sync.")
-        if args.json:
-            print(json.dumps([]))
-        else:
+        if output_format(args) == "table":
             print("Watch state already in sync.", file=sys.stderr)
+        else:
+            output([], args)
         return
 
     output(_plan_rows(plan, args), args)

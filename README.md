@@ -49,7 +49,13 @@ plex.do list-libraries
 ```ini
 [plex]
 url = http://localhost:32400
-token_path = ~/usr/tmp/.fsec/plex_token
+
+# Values may contain environment variables as $VAR or ${VAR}, and ~ for your
+# home directory. XDG_RUNTIME_DIR is a private, user-only tmpfs on most Linux
+# systems, which suits a secret -- but it is cleared at logout, so you will
+# need to run `plex.do login` again after each reboot. Point token_path
+# somewhere persistent if you would rather not.
+token_path = $XDG_RUNTIME_DIR/.plex.token
 
 # Optional credentials used by `plex.do login`.
 # The password is stored in plaintext, so keep this file mode 0600.
@@ -58,15 +64,41 @@ token_path = ~/usr/tmp/.fsec/plex_token
 # password = your-plex-password
 ```
 
+Environment variables are expanded in every value. A name that is not set is
+left as literal text and warned about, rather than failing later as a puzzling
+"no such file". `%` needs no escaping — interpolation is disabled, so a
+password may contain one freely.
+
 Both the config file and the token file are checked at startup and a warning is
 printed if either is readable by group or other.
 
 ## Commands
 
-Every command accepts `--json`, `--verbose`, `--debug`, and `--dry-run`, and
-they may be given either before or after the command name — `plex.do --json
-list-users` and `plex.do list-users --json` are equivalent. Logging always goes
-to stderr, so `--json` output on stdout is safe to pipe.
+Every command accepts `-f/--format`, `-v/--verbose`, `--debug`, `--dry-run`,
+and `-V/--version`, and they may be given either before or after the command
+name — `plex.do --json list-users` and `plex.do list-users --json` are
+equivalent. Logging always goes to stderr, so machine-readable output on stdout
+is safe to pipe.
+
+### Output formats
+
+```bash
+plex.do list-libraries                  # aligned table (default)
+plex.do list-libraries --json           # shorthand for -f json
+plex.do -f yaml list-libraries
+plex.do list-titles 3 -f csv > titles.csv
+plex.do list-users -f clixml            # PowerShell Import-Clixml
+```
+
+| format | notes |
+| --- | --- |
+| `table` | Default. Box-drawn and width-aligned, ASCII fallback on legacy consoles. |
+| `json` | Non-ASCII escaped, so it prints on any console. |
+| `yaml` | Strings are always quoted, so a title like `NO` or `1.10` stays a string rather than being reinterpreted as a boolean or a float. |
+| `csv` | Header row plus one row per record, `\n` line endings. |
+| `clixml` | PowerShell CLIXML with typed properties; pipe into `Import-Clixml`. |
+
+`-V/--version` prints the installed version, which also appears in `--help`.
 Anywhere a **library** is required you may pass either the numeric library ID
 or its title, so `plex.do list-titles 3` and `plex.do list-titles "TV Shows"`
 are equivalent. The same applies to `--library-id` on `search` and `-l` on

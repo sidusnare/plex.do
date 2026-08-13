@@ -93,7 +93,7 @@ function __plexdo_positionals
             continue
         end
         switch $t
-            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code
+            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code -f --format
                 set skip 1
                 continue
             case '-*'
@@ -222,7 +222,7 @@ for prog in plex.do plexdo
 
     # Global flags: valid before or after the command name.
     complete -c $prog -l json -d 'Output machine-readable JSON instead of tables'
-    complete -c $prog -l verbose -d 'Print high-level progress to stderr'
+    complete -c $prog -s v -l verbose -d 'Print high-level progress to stderr'
     complete -c $prog -l debug -d 'Print detailed internal logs to stderr'
     complete -c $prog -l dry-run -d 'Show what would happen without mutating Plex'
     complete -c $prog -s h -l help -d 'Show this help message and exit'

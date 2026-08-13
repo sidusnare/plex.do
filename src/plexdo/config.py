@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 import configparser
 import os
+import re
 import sys
 
 from plexapi.server import PlexServer
@@ -40,6 +41,28 @@ def check_file_permissions(path: Path, label: str) -> None:
         )
 
 
+def _expand_environment(cfg: configparser.ConfigParser) -> None:
+    """Expand $VAR and ${VAR} in every [plex] value, in place.
+
+    os.path.expandvars leaves an unset variable as literal text, which would
+    surface later as a baffling "no such file" for a path like
+    "$XDG_RUNTIME_DIR/.plex.token", so an unresolved name is warned about here.
+    """
+    if not cfg.has_section("plex"):
+        return
+    for key, raw in cfg.items("plex"):
+        expanded = os.path.expandvars(raw)
+        if expanded != raw:
+            LOG.debug("Expanded environment variables in [plex] %s", key)
+        for name in re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", expanded):
+            LOG.warning(
+                "[plex] %s references $%s, which is not set; leaving it "
+                "literal. Set it, or use an absolute path in %s.",
+                key, name, CONFIG_PATH,
+            )
+        cfg.set("plex", key, expanded)
+
+
 def config_optional(cfg: configparser.ConfigParser, key: str) -> Optional[str]:
     """Return a stripped optional value from the [plex] section, or None."""
     value = cfg.get("plex", key, fallback=None)
@@ -57,8 +80,11 @@ def load_config() -> configparser.ConfigParser:
             "Run `plex.do write-config-example` to create a template."
         )
     check_file_permissions(CONFIG_PATH, "config file")
-    cfg = configparser.ConfigParser()
+    # interpolation=None: a password containing "%" would otherwise raise
+    # InterpolationSyntaxError before it could ever be used.
+    cfg = configparser.ConfigParser(interpolation=None)
     cfg.read(CONFIG_PATH, encoding="utf-8")
+    _expand_environment(cfg)
     LOG.debug("Loaded config from %s", CONFIG_PATH)
     return cfg
 

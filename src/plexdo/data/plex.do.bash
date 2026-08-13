@@ -183,7 +183,11 @@ append-playlist export-titles copy-watched login write-config-example"
 }
 
 _plexdo_global_flags() {
-    echo "--json --verbose --debug --dry-run --help"
+    echo "-f --format --json -v --verbose --debug --dry-run -V --version -h --help"
+}
+
+_plexdo_output_formats() {
+    echo "table json yaml csv clixml"
 }
 
 # Find the first non-flag positional word after the program name (= the sub-command).
@@ -206,7 +210,7 @@ _plexdo_positional_count() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        if [[ "$word" == "--m3u" ]]; then skip_next=1; continue; fi
+        case "$word" in --m3u|-f|--format) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1
@@ -224,7 +228,7 @@ _plexdo_nth_positional() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        if [[ "$word" == "--m3u" ]]; then skip_next=1; continue; fi
+        case "$word" in --m3u|-f|--format) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1

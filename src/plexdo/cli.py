@@ -22,9 +22,11 @@ import argparse
 import sys
 from typing import List, Optional
 
+from plexdo import __version__
 from plexdo.accounts import resolve_user_arguments
 from plexdo.sections import resolve_library_arguments
 from plexdo.commands import build_registry, register_all
+from plexdo.formats import OUTPUT_FORMATS
 from plexdo.config import connect_plex, load_config
 from plexdo.logs import configure_logging
 from plexdo.security import scrub_password_argument
@@ -44,11 +46,26 @@ def _add_global_flags(
     """
     default = argparse.SUPPRESS if suppress else False
     parser.add_argument(
-        "--json", action="store_true", default=default,
-        help="Output machine-readable JSON instead of tables.",
+        "-f", "--format", dest="format", choices=list(OUTPUT_FORMATS),
+        default=argparse.SUPPRESS if suppress else "table", metavar="FORMAT",
+        help=(
+            "Output format: " + ", ".join(OUTPUT_FORMATS) + ". "
+            "Default is an aligned table."
+        ),
+    )
+    # A convenience alias writing to the same destination as --format, so
+    # there is only ever one attribute for a command to consult.
+    parser.add_argument(
+        "--json", dest="format", action="store_const", const="json",
+        default=argparse.SUPPRESS, help="Shorthand for --format json.",
     )
     parser.add_argument(
-        "--verbose", action="store_true", default=default,
+        "-V", "--version", action="version",
+        version=f"plex.do (plexdo) {__version__}",
+        help="Show the installed version and exit.",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", default=default,
         help="Print high-level progress to stderr.",
     )
     parser.add_argument(
@@ -72,10 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser."""
     parser = argparse.ArgumentParser(
         prog="plex.do",
-        description="Interact with a Plex Media Server via plexapi.",
+        description=(
+            f"Interact with a Plex Media Server via plexapi.  (version {__version__})"
+        ),
         epilog=(
-            "Global flags (--json, --verbose, --debug, --dry-run) may be given "
-            "either before or after the command name."
+            "Global flags (-f/--format, --json, -v/--verbose, --debug, "
+            "--dry-run, -V/--version) may be given either before or after the "
+            "command name."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

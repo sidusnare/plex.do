@@ -4,13 +4,12 @@
 
 from typing import Any, Dict, List, Optional
 import argparse
-import json
 
 from plexapi.audio import Track
 from plexapi.server import PlexServer
 from plexapi.video import Episode, Movie, Show
 
-from plexdo.console import _cell, print_metadata
+from plexdo.console import _cell, output
 from plexdo.convert import normalize_rating_key
 from plexdo.titles import _display_title, fetch_item
 
@@ -109,10 +108,7 @@ def cmd_show_metadata(plex: PlexServer, args: argparse.Namespace) -> None:
     builder = _METADATA_BUILDERS.get(item.type, _base_metadata)
     record: Dict[str, Any] = builder(item)
 
-    if args.json:
-        print(json.dumps(record, default=str))
-    else:
-        print_metadata(record)
+    output(record, args)
 
 
 def register(

@@ -185,10 +185,31 @@ without `--verbose`; stderr so it never contaminates `--json`.
 
 Return a stripped optional `[plex]` value, or `None` when absent or empty.
 
+## VERSIONING
+
+The version is `major.minor.revision`. `__version__` in
+`src/plexdo/__init__.py` and `version` in `pyproject.toml` must always agree.
+
+**Increment the revision — the third field — every time a release archive is
+produced.** Major and minor move only on explicit instruction, never
+automatically because a change felt significant.
+
+Note that the `Version="1.1.0.1"` attribute in the CLIXML output is a fixed
+PowerShell schema constant and has nothing to do with this project's version;
+it must never be bumped alongside it.
+
 ## GLOBAL FLAGS
 
-Every command accepts `--json`, `--verbose`, `--debug`, `--dry-run`, and they
-must work **either before or after the command name**. All logging goes to
+Every command accepts `-f/--format`, `--json`, `-v/--verbose`, `--debug`,
+`--dry-run`, and `-V/--version`, and they must work **either before or after
+the command name**.
+
+`--format` takes `table json yaml csv clixml` and writes to `dest="format"`.
+`--json` is a `store_const` alias writing to that *same* destination, so there
+is exactly one attribute for commands to consult and no possibility of the two
+disagreeing; give it `default=argparse.SUPPRESS` so it never clobbers an
+explicit `--format`. `-V/--version` uses `action="version"`, and the version
+also appears in the parser description. All logging goes to
 stderr only, so `--json` output on stdout is always clean.
 
 Implement this with `_add_global_flags(parser, suppress=False)` called twice:

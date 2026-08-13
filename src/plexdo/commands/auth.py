@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import argparse
 import configparser
 import getpass
-import json
 import os
 import sys
 import textwrap
@@ -17,6 +16,7 @@ from plexapi.myplex import MyPlexAccount
 from plexapi.server import PlexServer
 
 from plexdo.config import config_optional, load_config
+from plexdo.console import output, output_format
 from plexdo.constants import CONFIG_EXAMPLE, CONFIG_PATH, LOG
 
 
@@ -130,12 +130,12 @@ def cmd_login(_plex: Optional[PlexServer], args: argparse.Namespace) -> None:
     path = _save_token(token, token_path_raw)
     verified = _verify_token(url, token)
 
-    if args.json:
-        print(json.dumps({"token_path": str(path), "verified": verified}))
-    else:
+    if output_format(args) == "table":
         print(f"Token saved to: {path}")
         if verified:
             print(f"Verified against: {url}")
+    else:
+        output({"token_path": str(path), "verified": verified}, args)
 
 
 def cmd_write_config_example(_plex: Optional[PlexServer], _args: argparse.Namespace) -> None:

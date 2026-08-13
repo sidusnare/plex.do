@@ -137,7 +137,7 @@ _plexdo_positional() {
     if (( skip )); then skip=0; continue; fi
     case ${words[i]} in
       --m3u|--album|--sort|--media-type|--library-id|-l|--library|-t|--title|\
-      -u|--username|-p|--password|-c|--code) skip=1; continue ;;
+      -u|--username|-p|--password|-c|--code|-f|--format) skip=1; continue ;;
       -*) continue ;;
     esac
     if (( count == want )); then print -r -- ${words[i]}; return; fi
