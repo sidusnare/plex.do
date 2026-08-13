@@ -4,7 +4,6 @@
 
 from typing import Any, List, Tuple
 import argparse
-import re
 import sys
 
 from plexapi.myplex import MyPlexAccount, MyPlexUser
@@ -13,6 +12,7 @@ from plexapi.server import PlexServer
 from plexdo.console import _cell
 from plexdo.constants import LOG
 from plexdo.convert import normalize_rating_key
+from plexdo.identify import resolve_identifier
 
 
 def _server_for_user(plex: PlexServer, user_id: int) -> PlexServer:
@@ -80,57 +80,9 @@ def _user_roster(plex: PlexServer) -> List[Tuple[int, str]]:
     return roster
 
 
-def _titles_matching(
-    roster: List[Tuple[int, str]], value: str
-) -> List[Tuple[int, str]]:
-    """Return roster entries whose title matches, preferring an exact match."""
-    exact = [entry for entry in roster if entry[1] == value]
-    if exact:
-        return exact
-    lowered = value.lower()
-    return [entry for entry in roster if entry[1].lower() == lowered]
-
-
 def resolve_user_identifier(roster: List[Tuple[int, str]], value: Any) -> int:
-    """Resolve a numeric user ID or a user title to a numeric user ID.
-
-    A value that is both a real user's ID and another user's title resolves to
-    the ID, with a warning naming the user that was not selected. Two users
-    sharing a title is unresolvable and aborts.
-    """
-    text = _cell(value)
-    matches = _titles_matching(roster, text)
-
-    if len(matches) > 1:
-        ids = ", ".join(str(user_id) for user_id, _ in matches)
-        sys.exit(
-            f"Ambiguous user title {text!r}: it matches user IDs {ids}. "
-            "Pass the numeric user ID instead."
-        )
-
-    if re.fullmatch(r"-?\d+", text):
-        number = int(text)
-        if number in {user_id for user_id, _ in roster}:
-            if matches and matches[0][0] != number:
-                LOG.warning(
-                    "%r is both a user ID and the title of user %d; matching "
-                    "the user ID. Pass %d to select the user titled %r.",
-                    text, matches[0][0], matches[0][0], text,
-                )
-            return number
-        if matches:
-            # Not a real ID, but it is somebody's title, so use that.
-            LOG.debug("%r is not a known user ID; matched by title.", text)
-            return matches[0][0]
-        # Unknown ID: return it so the downstream lookup reports it precisely.
-        return number
-
-    if matches:
-        return matches[0][0]
-    sys.exit(
-        f"User not found: {text!r}. Run `plex.do list-users` to see "
-        "available user IDs and titles."
-    )
+    """Resolve a numeric user ID or a user title to a numeric user ID."""
+    return resolve_identifier(roster, value, "user", "list-users")
 
 
 def resolve_user_arguments(plex: PlexServer, args: "argparse.Namespace") -> None:

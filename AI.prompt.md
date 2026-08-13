@@ -33,7 +33,8 @@ src/plexdo/
 │                       print_table, print_metadata
 ├── titles.py           _display_title, _fetch_show, _non_special_episodes,
 │                       _shuffle_list, fetch_item
-├── sections.py         resolve_section, resolve_sections
+├── identify.py         resolve_identifier (shared by users and libraries)
+├── sections.py         resolve_section, resolve_sections, library resolution
 ├── accounts.py         _server_for_user, _find_user_by_id, _is_restricted,
 │                       _account_type
 ├── playlists.py        _resolve_playlist, finalize_playlist,
@@ -241,6 +242,44 @@ each side of every cell:
 - `_non_special_episodes(show)` — episodes with `seasonNumber > 0`
 - `_shuffle_list(lst)` — Fisher-Yates via `secrets.randbelow`
 - `_resolve_playlist(user_plex, identifier)` — try `int()` → `fetchItem` (assert `isinstance(..., Playlist)`); else look up by title; `sys.exit` if absent
+
+### Identifier resolution (users and libraries)
+
+`identify.resolve_identifier(roster, value, kind, list_command)` implements the
+rules once for both users and libraries; do not write the algorithm twice, or
+pylint's `duplicate-code` check will flag it. The roster is a list of
+`(numeric_id, title)` pairs, and `kind` / `list_command` only shape the
+warnings and errors, so a library miss says "Library not found ... run
+`plex.do list-libraries`" while a user miss names `list-users`.
+
+Rules, in order:
+
+- Titles match exactly first, then case-insensitively.
+- More than one title match → `sys.exit`, listing the colliding IDs.
+- Numeric value that is a real ID → use it; if it is *also* some other entry's
+  title, warn naming the entry that was not selected.
+- Numeric value that is not a real ID but *is* a title → resolve by title.
+- Numeric value matching nothing → return unchanged so the downstream lookup
+  produces the precise error.
+- Non-numeric matching nothing → `sys.exit` pointing at the list command.
+
+The duplicate-title abort applies only when resolving *by title*; a numeric ID
+is unambiguous and must still work on a server with two identically titled
+entries.
+
+### Library identifier resolution
+
+Every argument naming a library accepts an ID or a title, so all six are plain
+strings with `metavar="LIBRARY"` — never `type=int`. They are the positionals
+of `list-titles`, `export-titles`, and `read`, the optional positional of
+`rescan`, `--library-id` on `search`, and `-l/--library` on `copy-watched`.
+All use the attribute name `library_id`.
+
+`sections.resolve_library_arguments(plex, args)` runs from `cli.main` next to
+the user resolver, rewriting `library_id` in place so handlers always receive
+an int. It must return early when the attribute is absent *or None* — `rescan
+--status` legitimately has no library — so those commands cost no extra API
+call.
 
 ### User identifier resolution
 
@@ -689,6 +728,10 @@ split from `"Album - Photo Title"`), plus `_plexdo_find_cmd`,
 | `append-playlist` | user_id | playlist | rating_key… | — | — |
 | `export-titles` | library_id | file path | — | — | `--sort`, `--album` → albums |
 | `copy-watched` | user_id | user_id | — | — | `-1`, `-l` → libraries, `-t` → ratingKeys, `--unwatch` |
+
+Values that can contain spaces (library titles, user titles, playlist names)
+must reach `COMPREPLY` as whole lines via the read-loop helper, **not** through
+`compgen -W`, which word-splits `TV Shows` into two candidates.
 
 ### zsh — `completions/_plex.do`
 

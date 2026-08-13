@@ -273,8 +273,8 @@ def register(
         help="Only write to the second user; never modify the first.",
     )
     parser.add_argument(
-        "-l", "--library", dest="library_id", type=int, default=None, metavar="ID",
-        help="Restrict to a single library ID. Obtain IDs with list-libraries.",
+        "-l", "--library", dest="library_id", default=None, metavar="LIBRARY",
+        help="Restrict to one library, by ID or title. Obtain both with list-libraries.",
     )
     parser.add_argument(
         "-t", "--title", dest="rating_key", type=int, default=None, metavar="KEY",

@@ -105,8 +105,8 @@ def register(
         ),
     )
     parser.add_argument(
-        "--library-id", dest="library_id", type=int, default=None, metavar="ID",
-        help="Restrict search to a single library ID. Obtain IDs with list-libraries.",
+        "--library-id", dest="library_id", default=None, metavar="LIBRARY",
+        help="Restrict search to one library, by ID or title. Obtain both with list-libraries.",
     )
 
 

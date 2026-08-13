@@ -99,8 +99,8 @@ def register(
         ),
     )
     parser.add_argument(
-        "library_id", type=int,
-        help="Library ID (int). Obtain with list-libraries.",
+        "library_id", metavar="LIBRARY",
+        help="Library ID (int) or library title (str). Obtain both with list-libraries.",
     )
     parser.add_argument(
         "rating_key", type=int,

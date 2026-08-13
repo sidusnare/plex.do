@@ -76,8 +76,9 @@ def register(
         help="Trigger a library rescan, with optional status view or flush-and-rescan.",
     )
     parser.add_argument(
-        "library_id", type=int, nargs="?", default=None,
-        help="Library ID (int). Obtain with list-libraries. Required unless -s / --status is used.",
+        "library_id", metavar="LIBRARY", nargs="?", default=None,
+        help="Library ID (int) or title (str). Obtain both with list-libraries. "
+        "Required unless -s / --status is used.",
     )
     parser.add_argument(
         "-s", "--status", action="store_true", default=False,

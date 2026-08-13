@@ -23,6 +23,7 @@ import sys
 from typing import List, Optional
 
 from plexdo.accounts import resolve_user_arguments
+from plexdo.sections import resolve_library_arguments
 from plexdo.commands import build_registry, register_all
 from plexdo.config import connect_plex, load_config
 from plexdo.logs import configure_logging
@@ -104,9 +105,10 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     if args.command in needs_plex:
         plex = connect_plex(load_config())
-        # Commands receive numeric user IDs; titles are resolved here so no
-        # handler has to care which form the user typed.
+        # Commands receive numeric user and library IDs; titles are resolved
+        # here so no handler has to care which form the user typed.
         resolve_user_arguments(plex, args)
+        resolve_library_arguments(plex, args)
         handler(plex, args)
     else:
         handler(None, args)

@@ -125,8 +125,8 @@ def register(
 
     p_lt = sub.add_parser("list-titles", parents=parents, help="List titles in a library.")
     p_lt.add_argument(
-        "library_id", type=int,
-        help="Library ID (int). Obtain with list-libraries.",
+        "library_id", metavar="LIBRARY",
+        help="Library ID (int) or library title (str). Obtain both with list-libraries.",
     )
     p_lt.add_argument(
         "--album", default=None, metavar="ALBUM",
@@ -151,8 +151,8 @@ def register(
         help="Export an entire library to an M3U file or photo gallery.",
     )
     p_et.add_argument(
-        "library_id", type=int,
-        help="Library ID (int). Obtain with list-libraries.",
+        "library_id", metavar="LIBRARY",
+        help="Library ID (int) or library title (str). Obtain both with list-libraries.",
     )
     p_et.add_argument(
         "output_path", metavar="PATH",

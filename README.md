@@ -67,12 +67,18 @@ Every command accepts `--json`, `--verbose`, `--debug`, and `--dry-run`, and
 they may be given either before or after the command name — `plex.do --json
 list-users` and `plex.do list-users --json` are equivalent. Logging always goes
 to stderr, so `--json` output on stdout is safe to pipe.
+Anywhere a **library** is required you may pass either the numeric library ID
+or its title, so `plex.do list-titles 3` and `plex.do list-titles "TV Shows"`
+are equivalent. The same applies to `--library-id` on `search` and `-l` on
+`copy-watched`.
+
 Anywhere a user is required you may pass either the numeric user ID or the
 user's title, so `plex.do list-playlists 7` and `plex.do list-playlists Alice`
 are equivalent. `0` always means the admin account. Titles match exactly first,
 then case-insensitively. If a value is simultaneously one user's ID and another
 user's title the ID wins, with a warning naming the user that was skipped; if
-two users share a title the command aborts and asks for the numeric ID.
+two users share a title the command aborts and asks for the numeric ID. The
+identical rules apply to library IDs and titles.
 
 ### Listing and searching
 
@@ -156,9 +162,9 @@ plex.do rescan 3 --now       # cancel pending scans first
 
 ## Shell completion
 
-Completion is provided for **bash, zsh, and fish**. All three cover user IDs
-*and* titles, library IDs, rating keys, playlist names and keys, and photo
-album names, reading a 15-minute cache under `~/.cache/plex.do` that the list
+Completion is provided for **bash, zsh, and fish**. All three cover user and library IDs
+*and* their titles, rating keys, playlist names and keys, and photo album
+names, reading a 15-minute cache under `~/.cache/plex.do` that the list
 commands populate as a side effect. When a cache is stale it refreshes in the
 background, so completion never blocks.
 

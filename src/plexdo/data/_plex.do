@@ -66,9 +66,11 @@ _plexdo_users() {
 _plexdo_libraries() {
   local cache="$(_plexdo_cache_dir)/libraries.json"
   _plexdo_cache_fresh $cache || _plexdo_refresh list-libraries
-  local -a libs
+  local -a libs titles
   libs=( ${(f)"$(_plexdo_read_cache $cache id title)"} )
-  _describe -t libraries 'library' libs
+  titles=( ${(f)"$(_plexdo_read_cache $cache title '')"} )
+  _describe -t library-ids 'library id' libs
+  [[ -n $titles ]] && _describe -t library-titles 'library title' titles
 }
 
 _plexdo_rating_keys() {

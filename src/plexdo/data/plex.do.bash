@@ -78,19 +78,23 @@ PYEOF
 _plexdo_complete_user_id() {
     local cache="$_PLEXDO_CACHE/users.json"
     _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-users
-    local candidates="0" line
-    while IFS= read -r line; do
-        [ -n "$line" ] && candidates="$candidates $line"
-    done < <( _plexdo_json_candidates "$cache" "id"
-              _plexdo_json_candidates "$cache" "title" )
-    COMPREPLY=( $(compgen -W "$candidates" -- "$cur" | sort -u) )
+    COMPREPLY=()
+    _plexdo_compreply < <(
+        case "0" in "$cur"*) echo 0 ;; esac
+        _plexdo_json_candidates "$cache" "id"
+        _plexdo_json_candidates "$cache" "title"
+    )
 }
 
-# library_id — IDs from the libraries cache
+# library_id — IDs and titles from the libraries cache; commands accept either.
 _plexdo_complete_library_id() {
     local cache="$_PLEXDO_CACHE/libraries.json"
     _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-libraries
-    COMPREPLY=(); _plexdo_compreply < <( _plexdo_json_candidates "$cache" "id" )
+    COMPREPLY=()
+    _plexdo_compreply < <(
+        _plexdo_json_candidates "$cache" "id"
+        _plexdo_json_candidates "$cache" "title"
+    )
 }
 
 # rating_key — ratingKeys aggregated from all titles.*.json cache files;

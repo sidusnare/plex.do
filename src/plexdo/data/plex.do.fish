@@ -133,6 +133,7 @@ function __plexdo_libraries
     set -l cache (__plexdo_cache_dir)/libraries.json
     __plexdo_cache_fresh $cache; or __plexdo_refresh list-libraries
     __plexdo_read_cache $cache id title
+    __plexdo_read_cache $cache title
 end
 
 function __plexdo_rating_keys
