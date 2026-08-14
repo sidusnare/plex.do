@@ -8,7 +8,7 @@ import sys
 
 from plexapi.server import PlexServer
 
-from plexdo.console import _cell, output
+from plexdo.console import clean_text, output
 from plexdo.constants import LOG
 from plexdo.sections import resolve_section
 
@@ -28,11 +28,11 @@ def _activity_rows(plex: PlexServer) -> List[Dict[str, Any]]:
     rows = []
     for act in plex.activities:
         rows.append({
-            "type":     _cell(getattr(act, "type",     "") or ""),
-            "title":    _cell(getattr(act, "title",    "") or ""),
-            "subtitle": _cell(getattr(act, "subtitle", "") or ""),
+            "type":     clean_text(getattr(act, "type",     "") or ""),
+            "title":    clean_text(getattr(act, "title",    "") or ""),
+            "subtitle": clean_text(getattr(act, "subtitle", "") or ""),
             "progress": getattr(act, "progress", ""),
-            "uuid":     _cell(getattr(act, "uuid",     "") or ""),
+            "uuid":     clean_text(getattr(act, "uuid",     "") or ""),
         })
     return rows
 

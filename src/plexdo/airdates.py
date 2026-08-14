@@ -9,20 +9,15 @@ import statistics
 from plexapi.video import Episode
 
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key, parse_date
+from plexdo.convert import parse_date
 
 
-def _aired_dt(ep: Episode) -> Optional[datetime.datetime]:
-    """Return parsed originallyAvailableAt, or None."""
-    return parse_date(ep.originallyAvailableAt)
-
-
-def _episodes_in_same_season(ep: Episode, all_eps: List[Episode]) -> List[Episode]:
+def episodes_in_same_season(ep: Episode, all_eps: List[Episode]) -> List[Episode]:
     """Return all episodes in the same season as ep (excluding ep itself)."""
     return [
         e for e in all_eps
         if e.seasonNumber == ep.seasonNumber
-        and normalize_rating_key(e.ratingKey) != normalize_rating_key(ep.ratingKey)
+        and int(e.ratingKey) != int(ep.ratingKey)
     ]
 
 
@@ -30,7 +25,7 @@ def _collect_neighbors(
     ep: Episode, season_eps: List[Episode]
 ) -> Tuple[List[datetime.datetime], List[datetime.datetime]]:
     """
-    Return (prev_dates, next_dates) — up to 6 known dates on each side.
+    Return (prev_dates, next_dates) - up to 6 known dates on each side.
     Episodes are ordered by episodeNumber within the season.
     """
     ordered = sorted(
@@ -43,7 +38,7 @@ def _collect_neighbors(
 
     for e in reversed(ordered):
         if e.index < ep_index:
-            dt = _aired_dt(e)
+            dt = parse_date(e.originallyAvailableAt)
             if dt is not None:
                 prev_dates.append(dt)
             if len(prev_dates) >= 6:
@@ -51,7 +46,7 @@ def _collect_neighbors(
 
     for e in ordered:
         if e.index > ep_index:
-            dt = _aired_dt(e)
+            dt = parse_date(e.originallyAvailableAt)
             if dt is not None:
                 next_dates.append(dt)
             if len(next_dates) >= 6:
@@ -63,7 +58,7 @@ def _collect_neighbors(
 def _median_interval(dates: List[datetime.datetime]) -> Optional[datetime.timedelta]:
     """Compute the median timedelta between adjacent sorted dates."""
     sorted_dates = sorted(dates)
-    if len(sorted_dates) < 3:  # need ≥3 dates → ≥2 intervals
+    if len(sorted_dates) < 3:  # need >=3 dates -> >=2 intervals
         return None
     intervals = [
         (sorted_dates[i + 1] - sorted_dates[i]).total_seconds()
@@ -100,12 +95,12 @@ def _estimate_date(
     return datetime.datetime.fromtimestamp(avg_ts)
 
 
-def _prompt_for_date(ep: Episode, last_used: Optional[datetime.datetime]) -> datetime.datetime:
+def prompt_for_date(ep: Episode, last_used: Optional[datetime.datetime]) -> datetime.datetime:
     """Interactively ask the user for a missing air date."""
     example = last_used.strftime("%Y-%m-%d") if last_used else "2000-01-01"
     prompt = (
         f"\nCannot resolve air date for: {ep.grandparentTitle} "
-        f"S{ep.seasonNumber:02d}E{ep.index:02d} – {ep.title}\n"
+        f"S{ep.seasonNumber:02d}E{ep.index:02d} - {ep.title}\n"
         f"Enter date (YYYY-MM-DD) [example: {example}]: "
     )
     while True:
@@ -116,13 +111,13 @@ def _prompt_for_date(ep: Episode, last_used: Optional[datetime.datetime]) -> dat
             print("Invalid format, please use YYYY-MM-DD.")
 
 
-def _resolve_episode_date(
+def resolve_episode_date(
     ep: Episode,
     season_peers: List[Episode],
     last_used: Optional[datetime.datetime],
 ) -> datetime.datetime:
     """Return a resolved datetime for an episode, estimating or prompting if needed."""
-    dt = _aired_dt(ep)
+    dt = parse_date(ep.originallyAvailableAt)
     if dt is not None:
         return dt
 
@@ -138,4 +133,4 @@ def _resolve_episode_date(
         )
         return estimated
 
-    return _prompt_for_date(ep, last_used)
+    return prompt_for_date(ep, last_used)

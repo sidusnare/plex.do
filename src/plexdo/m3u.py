@@ -7,10 +7,10 @@ from typing import List
 
 from plexdo.constants import LOG, MediaItem
 from plexdo.paths import PathMapper, identity
-from plexdo.titles import _display_title
+from plexdo.titles import display_title
 
 
-def _write_m3u(
+def write_m3u(
     sorted_items: List[MediaItem],
     path: str,
     map_path: PathMapper = identity,
@@ -29,7 +29,7 @@ def _write_m3u(
                 file_path = getattr(part, "file", None)
                 if not file_path:
                     continue
-                lines.append(f"#EXTINF:{seconds},{_display_title(item)}")
+                lines.append(f"#EXTINF:{seconds},{display_title(item)}")
                 lines.append(map_path(file_path))
 
     output_path = Path(path).expanduser()

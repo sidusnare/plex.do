@@ -2,18 +2,10 @@
 
 """Value coercion helpers for rating keys and dates."""
 
-from typing import Any, Optional
+from typing import Optional
 import datetime
 
 from plexdo.constants import DateInput
-
-
-def normalize_rating_key(raw: Any) -> int:
-    """Cast any ratingKey representation to int."""
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid ratingKey: {raw!r}") from exc
 
 
 def parse_date(value: DateInput) -> Optional[datetime.datetime]:
@@ -34,7 +26,7 @@ def parse_date(value: DateInput) -> Optional[datetime.datetime]:
     raise TypeError(f"Unsupported date type: {type(value)}")
 
 
-def _format_duration(milliseconds: Optional[int]) -> str:
+def format_duration(milliseconds: Optional[int]) -> str:
     """Convert milliseconds to a human-readable H:MM:SS string."""
     if milliseconds is None:
         return ""

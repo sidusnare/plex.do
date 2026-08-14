@@ -9,30 +9,29 @@ import sys
 from plexapi.server import PlexServer
 from plexapi.video import Episode
 
-from plexdo.cache import _write_cache
+from plexdo.cache import write_cache
 from plexdo.console import output
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key
-from plexdo.gallery import _write_gallery_html
-from plexdo.m3u import _write_m3u
+from plexdo.gallery import write_gallery_html
+from plexdo.m3u import write_m3u
 from plexdo.paths import add_prefix_argument, mapper_for
-from plexdo.photos import _collect_library_items, _collect_photos
+from plexdo.photos import collect_library_items, collect_photos
 from plexdo.sections import resolve_section
-from plexdo.sorting import _apply_sort
-from plexdo.titles import _display_title, _fetch_show, _non_special_episodes
+from plexdo.sorting import apply_sort
+from plexdo.titles import display_title, fetch_show, non_special_episodes
 
 
 def cmd_list_libraries(plex: PlexServer, args: argparse.Namespace) -> None:
     """List all Plex libraries."""
     rows = [
         {
-            "id": normalize_rating_key(lib.key),
+            "id": int(lib.key),
             "type": lib.type,
             "title": lib.title,
         }
         for lib in plex.library.sections()
     ]
-    _write_cache("libraries", rows)
+    write_cache("libraries", rows)
     output(rows, args)
 
 
@@ -47,41 +46,41 @@ def cmd_list_titles(plex: PlexServer, args: argparse.Namespace) -> None:
         album = None
 
     if section.type == "photo":
-        items = _collect_photos(section, album)
+        items = collect_photos(section, album)
     else:
         items = list(section.all())
 
     rows = [
         {
-            "ratingKey": normalize_rating_key(item.ratingKey),
-            "title": _display_title(item),
+            "ratingKey": int(item.ratingKey),
+            "title": display_title(item),
         }
         for item in items
     ]
-    _write_cache(f"titles.{library_id}", rows)
+    write_cache(f"titles.{library_id}", rows)
     output(rows, args)
 
 
 def cmd_list_show(plex: PlexServer, args: argparse.Namespace) -> None:
     """List all episodes in a show, optionally exporting an M3U."""
-    rating_key = normalize_rating_key(args.rating_key)
-    show = _fetch_show(plex, rating_key)
-    episodes: List[Episode] = _non_special_episodes(show)
+    rating_key = int(args.rating_key)
+    show = fetch_show(plex, rating_key)
+    episodes: List[Episode] = non_special_episodes(show)
 
     rows = [
         {
             "index": i + 1,
-            "ratingKey": normalize_rating_key(ep.ratingKey),
+            "ratingKey": int(ep.ratingKey),
             "season": ep.seasonNumber,
             "episode": ep.index,
-            "title": _display_title(ep),
+            "title": display_title(ep),
         }
         for i, ep in enumerate(episodes)
     ]
     output(rows, args)
 
     if args.m3u:
-        _write_m3u(episodes, args.m3u, mapper_for(plex, args))  # type: ignore[arg-type]
+        write_m3u(episodes, args.m3u, mapper_for(plex, args))  # type: ignore[arg-type]
 
 
 def cmd_export_titles(plex: PlexServer, args: argparse.Namespace) -> None:
@@ -96,23 +95,23 @@ def cmd_export_titles(plex: PlexServer, args: argparse.Namespace) -> None:
         LOG.warning("--album is only applicable to photo libraries; ignoring.")
         album = None
 
-    items = _collect_library_items(section, album)
+    items = collect_library_items(section, album)
 
     if not items:
         sys.exit(f"Library '{section.title}' contains no items.")
 
-    sorted_items = _apply_sort(items, args.sort)
-    gallery_title = f"{section.title} — {album}" if album else section.title
+    sorted_items = apply_sort(items, args.sort)
+    gallery_title = f"{section.title} - {album}" if album else section.title
     LOG.info(
         "Exporting %d item(s) sorted by '%s' to %s",
         len(sorted_items), args.sort, args.output_path,
     )
     if section.type == "photo":
-        _write_gallery_html(
+        write_gallery_html(
             sorted_items, args.output_path, gallery_title, mapper_for(plex, args)
         )
     else:
-        _write_m3u(sorted_items, args.output_path, mapper_for(plex, args))
+        write_m3u(sorted_items, args.output_path, mapper_for(plex, args))
         print(f"Exported {len(sorted_items)} items to: {args.output_path}")
 
 

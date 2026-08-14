@@ -8,10 +8,10 @@ import html as html_lib
 
 from plexapi.photo import Photo
 
-from plexdo.console import _cell
+from plexdo.console import clean_text
 from plexdo.constants import LOG
 from plexdo.paths import PathMapper, identity
-from plexdo.photos import _photo_file_path
+from plexdo.photos import photo_file_path
 
 
 def _gallery_css() -> str:
@@ -105,15 +105,15 @@ def _gallery_photo_anchor(photo: Photo, map_path: PathMapper = identity) -> List
     Uses the Plex server filesystem path for both href and src so no
     references to the Plex HTTP server appear in the output.  Photos with
     no resolvable path are skipped (returns an empty list), consistent with
-    _write_m3u behaviour.
+    write_m3u behaviour.
     """
-    file_path = _photo_file_path(photo)
+    file_path = photo_file_path(photo)
     if not file_path:
         LOG.debug("Skipping photo '%s': no server file path", photo.title)
         return []
     esc   = html_lib.escape
     path  = esc(map_path(file_path))
-    title = esc(_cell(photo.title or ""))
+    title = esc(clean_text(photo.title or ""))
     taken = esc(str(getattr(photo, "originallyAvailableAt", "") or ""))
     return [
         f'      <a class="spotlight" href="{path}"',
@@ -146,12 +146,12 @@ def _group_photos_by_album(photos: List[Photo]) -> Dict[str, List[Photo]]:
     """Group photos by parentTitle, using 'Uncategorised' as fallback."""
     groups: Dict[str, List[Photo]] = {}
     for photo in photos:
-        album = _cell(getattr(photo, "parentTitle", "") or "") or "Uncategorised"
+        album = clean_text(getattr(photo, "parentTitle", "") or "") or "Uncategorised"
         groups.setdefault(album, []).append(photo)
     return groups
 
 
-def _write_gallery_html(
+def write_gallery_html(
     photos: List[Photo],
     output_path: str,
     library_title: str,
@@ -161,7 +161,7 @@ def _write_gallery_html(
 
     Photos are grouped by album (parentTitle).  The gallery uses CDN-hosted
     Spotlight.js for the lightbox; all image references are server filesystem
-    paths — no Plex HTTP URLs appear in the output.
+    paths - no Plex HTTP URLs appear in the output.
     """
     esc  = html_lib.escape
     cdn  = "https://cdn.jsdelivr.net/npm/spotlight.js"

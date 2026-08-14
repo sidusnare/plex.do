@@ -35,7 +35,7 @@ def check_file_permissions(path: Path, label: str) -> None:
     leaked = mode & PERMISSIVE_MODE_MASK
     if leaked:
         LOG.warning(
-            "SECURITY: %s at %s has mode %04o — readable by %s. "
+            "SECURITY: %s at %s has mode %04o - readable by %s. "
             "Tighten it with: chmod 600 %s",
             label, path, mode & 0o7777,
             "group and others" if leaked & 0o007 else "group",

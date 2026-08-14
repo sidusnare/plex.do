@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bash completion for plex.do — with cached ID / name completion.
+# Bash completion for plex.do - with cached ID / name completion.
 #
 # Requires: bash 4.0+, python3 (already required by plex.do itself)
 #
@@ -10,7 +10,7 @@
 
 # ---------------------------------------------------------------------------
 # Cache helpers (15-minute TTL, written by the Python script as a side effect
-# of running any list-* command — completion triggers background refresh when
+# of running any list-* command - completion triggers background refresh when
 # a cache file is stale or absent)
 # ---------------------------------------------------------------------------
 
@@ -129,7 +129,7 @@ PYEOF
 # Per-argument completion helpers
 # ---------------------------------------------------------------------------
 
-# user_id — "0" (admin), plus IDs and titles from the users cache. Commands
+# user_id - "0" (admin), plus IDs and titles from the users cache. Commands
 # accept either form, so both are offered.
 _plexdo_complete_user_id() {
     local cache="$_PLEXDO_CACHE/users.json"
@@ -143,7 +143,7 @@ _plexdo_complete_user_id() {
     )
 }
 
-# library_id — IDs and titles from the libraries cache; commands accept either.
+# library_id - IDs and titles from the libraries cache; commands accept either.
 _plexdo_complete_library_id() {
     local cache="$_PLEXDO_CACHE/libraries.json"
     _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-libraries
@@ -153,7 +153,7 @@ _plexdo_complete_library_id() {
     )
 }
 
-# rating_key — ratingKeys aggregated from all titles.*.json cache files;
+# rating_key - ratingKeys aggregated from all titles.*.json cache files;
 # triggers per-library background refresh for any stale file, and kicks off
 # list-titles for each known library if no title cache exists at all.
 _plexdo_complete_rating_key() {
@@ -209,7 +209,7 @@ _plexdo_complete_playlist() {
     COMPREPLY=(); _plexdo_compreply < <( _plexdo_json_candidates "$cache" "title" )
 }
 
-# Album names for a given library_id — drawn from the titles cache.
+# Album names for a given library_id - drawn from the titles cache.
 # Emits the unique set of parentTitle values (album names) stored in the cache.
 _plexdo_complete_album() {
     local lib_id="$1"
@@ -316,7 +316,7 @@ _plexdo_complete() {
     local cmd pos uid
     cmd="$(_plexdo_find_cmd)"
 
-    # --m3u PATH → file path
+    # --m3u PATH -> file path
     if [[ "$prev" == "--m3u" ]]; then
         COMPREPLY=( $(compgen -f -- "$cur") )
         return
@@ -557,3 +557,7 @@ _plexdo_complete() {
 
 complete -F _plexdo_complete plex.do
 complete -F _plexdo_complete plex_do
+
+# em dash \xe2\x80\x94 here
+
+# test \xe2\x80\x94 drift

@@ -2,7 +2,7 @@
 
 """Playlist resolution, creation, and copy naming rules."""
 
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import argparse
 import sys
 
@@ -10,13 +10,12 @@ from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 
-from plexdo.console import _cell, output
+from plexdo.console import clean_text, output
 from plexdo.constants import LOG, MediaItem
-from plexdo.convert import normalize_rating_key
-from plexdo.titles import _display_title
+from plexdo.titles import display_title
 
 
-def _resolve_playlist(user_plex: PlexServer, identifier: str) -> Playlist:
+def resolve_playlist(user_plex: PlexServer, identifier: str) -> Playlist:
     """Return a Playlist located by name or ratingKey string.
 
     If *identifier* parses as an integer it is treated as a ratingKey;
@@ -32,17 +31,29 @@ def _resolve_playlist(user_plex: PlexServer, identifier: str) -> Playlist:
             )
         return item
     except ValueError:
-        pass  # identifier is not numeric — fall through to name lookup
+        pass  # identifier is not numeric - fall through to name lookup
     try:
         return user_plex.playlist(identifier)
     except NotFound:
         sys.exit(f"Playlist not found: {identifier!r}")
 
 
+def preview_rows(items: List[MediaItem]) -> List[Dict[str, Any]]:
+    """Build the numbered preview of the items a playlist will hold."""
+    return [
+        {
+            "index": i + 1,
+            "ratingKey": int(item.ratingKey),
+            "title": display_title(item),
+        }
+        for i, item in enumerate(items)
+    ]
+
+
 def existing_playlist(plex: PlexServer, name: str) -> Optional[Playlist]:
     """Return a playlist with exactly this title, or None."""
     for playlist in plex.playlists():
-        if _cell(playlist.title) == _cell(name):
+        if clean_text(playlist.title) == clean_text(name):
             return playlist
     return None
 
@@ -52,8 +63,14 @@ def finalize_playlist(
     name: str,
     items: List[MediaItem],
     args: argparse.Namespace,
-) -> None:
+    preview: bool = True,
+) -> str:
     """Validate, preview, and (unless --dry-run) create the playlist.
+
+    Returns "created" or "replaced" so a caller copying to many users can
+    report per-user outcomes. Set *preview* to False when the caller has
+    already shown the item list once and printing it again per user would
+    bury the report.
 
     Refuses to clobber an existing playlist of the same name unless
     --overwrite is given, and checks that before printing the preview so a
@@ -66,28 +83,23 @@ def finalize_playlist(
     if duplicate is not None and not getattr(args, "overwrite", False):
         sys.exit(
             f"A playlist named {name!r} already exists (ratingKey "
-            f"{normalize_rating_key(duplicate.ratingKey)}). Nothing has been "
+            f"{int(duplicate.ratingKey)}). Nothing has been "
             "created or removed.\n"
             "Re-run with --overwrite to replace it, or choose another name."
         )
 
     LOG.info("Playlist '%s': %d items", name, len(items))
 
-    preview_rows = [
-        {
-            "index": i + 1,
-            "ratingKey": normalize_rating_key(item.ratingKey),
-            "title": _display_title(item),
-        }
-        for i, item in enumerate(items)
-    ]
-    output(preview_rows, args)
+    if preview:
+        output(preview_rows(items), args)
+
+    outcome = "replaced" if duplicate is not None else "created"
 
     if args.dry_run:
         if duplicate is not None:
             LOG.info("--dry-run: would replace the existing '%s'", name)
         LOG.info("--dry-run: skipping playlist creation.")
-        return
+        return outcome
 
     if duplicate is not None:
         duplicate.delete()
@@ -95,6 +107,7 @@ def finalize_playlist(
 
     plex.createPlaylist(name, items=items)
     LOG.info("Playlist '%s' created with %d items.", name, len(items))
+    return outcome
 
 
 def _resolve_dest_name(
@@ -123,24 +136,33 @@ def _resolve_dest_name(
     return None
 
 
-def _copy_playlist_to(
+def copy_playlist_to(
     src_items: List[MediaItem],
     user_plex: PlexServer,
     desired_name: str,
     args: argparse.Namespace,
+    *,
     target_label: str = "target",
-) -> None:
-    """Copy items to user_plex under resolved name, applying naming rules."""
+    preview: bool = True,
+) -> Tuple[str, str, str]:
+    """Copy items to user_plex under the resolved name.
+
+    Returns (status, final_name, detail); status is "created", "replaced", or
+    "skipped".
+    """
     resolved = _resolve_dest_name(
         user_plex, desired_name, getattr(args, "overwrite", False)
     )
     if resolved is None:
-        LOG.warning(
-            "Skipping %s: both %r and %r already exist. Nothing was created "
-            "or deleted. Re-run with --overwrite to replace %r.",
-            target_label, desired_name, desired_name + " admin copy", desired_name,
+        detail = (
+            f"both {desired_name!r} and {desired_name + ' admin copy'!r} "
+            "already exist; use --overwrite to replace"
         )
-        return
+        # Reported by the caller as a result row, so this is detail rather
+        # than a warning; stderr stays for things the caller cannot show.
+        LOG.info("Skipping %s: %s. Nothing was created or deleted.",
+                 target_label, detail)
+        return "skipped", desired_name, detail
 
     final_name, replacing = resolved
     LOG.info("Copying to '%s' (replacing=%s)", final_name, replacing)
@@ -148,4 +170,5 @@ def _copy_playlist_to(
     # No delete here: _resolve_dest_name only reports replacing=True when
     # --overwrite was given, and finalize_playlist performs the replacement
     # itself. Doing it in both places would be the same logic twice.
-    finalize_playlist(user_plex, final_name, src_items, args)
+    status = finalize_playlist(user_plex, final_name, src_items, args, preview)
+    return status, final_name, ""

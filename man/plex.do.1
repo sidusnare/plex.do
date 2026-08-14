@@ -1,7 +1,7 @@
 .\" Man page for plex.do (plexdo).
 .\" Regenerate or edit alongside AI.prompt.md; the .TH version must match
 .\" __version__ in src/plexdo/__init__.py.
-.TH PLEX.DO 1 "2026-08-14" "plexdo 1.0.8" "User Commands"
+.TH PLEX.DO 1 "2026-08-14" "plexdo 1.0.14" "User Commands"
 .
 .SH NAME
 plex.do \- command\-line interface for Plex Media Server
@@ -152,8 +152,11 @@ and
 .SS Copying and modifying
 .TP
 .BI copy\-playlist\-all\-users " source_user source_playlist " [ \-o ]
-Copy a playlist to every managed user, skipping the source user. A failure for
-one user is warned about and the run continues.
+Copy a playlist to every managed user, skipping the source user. The item list
+is printed once, then each user produces a single line giving its outcome:
+\fBcreated\fR, \fBreplaced\fR, \fBskipped\fR, or \fBfailed\fR. A failure for one
+user does not end the run. In a machine\-readable format the outcomes are
+emitted as one record per user instead.
 .TP
 .BI copy\-playlist\-to\-user " source_user source_playlist user dest " [ \-o ]
 Copy a playlist to one user.

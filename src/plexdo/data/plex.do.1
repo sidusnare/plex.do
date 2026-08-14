@@ -1,7 +1,7 @@
 .\" Man page for plex.do (plexdo).
 .\" Regenerate or edit alongside AI.prompt.md; the .TH version must match
 .\" __version__ in src/plexdo/__init__.py.
-.TH PLEX.DO 1 "2026-08-14" "plexdo 1.0.8" "User Commands"
+.TH PLEX.DO 1 "2026-08-14" "plexdo 1.0.14" "User Commands"
 .
 .SH NAME
 plex.do \- command\-line interface for Plex Media Server
@@ -32,13 +32,13 @@ command name interacts awkwardly with
 .PP
 Wherever a
 .I user
-is required you may give the numeric user ID or the user's title, and
+is required you may give the numeric user ID or the user\(aqs title, and
 wherever a
 .I library
 is required you may give the numeric library ID or its title. User ID
 .B 0
 always means the admin account. Titles are matched exactly first, then
-case\-insensitively. If a value is both one entry's ID and another's title the
+case\-insensitively. If a value is both one entry\(aqs ID and another\(aqs title the
 ID wins and a warning names the entry that was skipped; if two entries share a
 title the command aborts and asks for the numeric ID.
 .PP
@@ -111,7 +111,7 @@ List users with their ID, account type (\fBmanaged\fR, \fBhome\fR,
 \fBfriend\fR, \fBshared\fR), title, username, and email.
 .TP
 .BI list\-playlists " user"
-List a user's playlists.
+List a user\(aqs playlists.
 .TP
 .BI list\-playlist " user playlist " [ \-\-m3u " PATH" ]
 List the items in one playlist, named or by ratingKey.
@@ -152,8 +152,11 @@ and
 .SS Copying and modifying
 .TP
 .BI copy\-playlist\-all\-users " source_user source_playlist " [ \-o ]
-Copy a playlist to every managed user, skipping the source user. A failure for
-one user is warned about and the run continues.
+Copy a playlist to every managed user, skipping the source user. The item list
+is printed once, then each user produces a single line giving its outcome:
+\fBcreated\fR, \fBreplaced\fR, \fBskipped\fR, or \fBfailed\fR. A failure for one
+user does not end the run. In a machine\-readable format the outcomes are
+emitted as one record per user instead.
 .TP
 .BI copy\-playlist\-to\-user " source_user source_playlist user dest " [ \-o ]
 Copy a playlist to one user.
@@ -206,7 +209,7 @@ Write a whole library to an M3U file, or to a self\-contained HTML gallery for
 a photo library. \fIORDER\fR is \fBalpha\fR (default), \fBdate\fR, or
 \fBrandom\fR.
 .PP
-M3U files hold the Plex server's own filesystem paths, not HTTP URLs.
+M3U files hold the Plex server\(aqs own filesystem paths, not HTTP URLs.
 .BR \-p ", " \-\-prefix
 replaces the server\-side library root with another, for reading the export
 where the media is mounted differently; separators follow the prefix, so a
@@ -279,7 +282,7 @@ warned about. Interpolation is disabled, so a password may contain
 .B %
 freely.
 .PP
-A section named for a numeric user ID holds that user's credentials. They are
+A section named for a numeric user ID holds that user\(aqs credentials. They are
 used only when the server refuses the admin\-issued token for that user, which
 happens when nothing has been shared with them.
 .PP
@@ -309,7 +312,7 @@ bare token is read as the admin token and converted on the next write.
 .PP
 When a command meets a 401 for a user, three sources are tried in turn: the
 server\-scoped token the admin can mint, a token already in the store, and a
-fresh login with that user's configured credentials. A token obtained by the
+fresh login with that user\(aqs configured credentials. A token obtained by the
 last is saved, so the login happens once rather than on every run.
 .
 .SH SHELL COMPLETION
@@ -398,7 +401,7 @@ plex.do copy\-watched Alice Bob \-\-one\-way
 Export a library for a client that mounts the media elsewhere:
 .PP
 .EX
-plex.do export\-titles "TV Shows" ~/tv.m3u \-\-prefix '\e\eNAS\emedia'
+plex.do export\-titles "TV Shows" ~/tv.m3u \-\-prefix \(aq\e\eNAS\emedia\(aq
 .EE
 .PP
 Stream an episode into a player:
@@ -410,7 +413,7 @@ plex.do read 3 12345 | mpv \-
 Machine\-readable output:
 .PP
 .EX
-plex.do \-\-json list\-users | jq '.[] | select(.type == "home")'
+plex.do \-\-json list\-users | jq \(aq.[] | select(.type == "home")\(aq
 plex.do status \-\-section sessions \-f csv
 .EE
 .
@@ -434,7 +437,7 @@ Project documentation:
 in the source distribution.
 .
 .SH BUGS
-Report issues at the project's issue tracker.
+Report issues at the project\(aqs issue tracker.
 .
 .SH LICENSE
 GNU General Public License version 3 or later. This is free software: you are

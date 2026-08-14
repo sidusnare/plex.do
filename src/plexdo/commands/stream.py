@@ -12,15 +12,14 @@ from plexapi.server import PlexServer
 
 from plexdo.console import output_format
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key
-from plexdo.titles import _display_title, fetch_item
+from plexdo.titles import display_title, fetch_item
 
 
 def _stream_to_stdout(url: str, label: str) -> None:
     """Stream a URL to binary stdout, handling a closed pipe gracefully."""
     if sys.stdout.isatty():
         LOG.warning(
-            "stdout is a terminal — pipe into a player, e.g.: "
+            "stdout is a terminal - pipe into a player, e.g.: "
             "plex.do read <lib> <key> | mpv -"
         )
     LOG.info("Streaming: %s", label)
@@ -31,7 +30,7 @@ def _stream_to_stdout(url: str, label: str) -> None:
                 sys.stdout.buffer.write(chunk)
         sys.stdout.buffer.flush()
     except BrokenPipeError:
-        # Downstream player exited (e.g. user quit mpv) — not an error.
+        # Downstream player exited (e.g. user quit mpv) - not an error.
         # Point stdout at the null device so the interpreter's final flush
         # does not print "BrokenPipeError ignored" to stderr on exit.
         LOG.debug("Downstream closed pipe; stream ended.")
@@ -51,10 +50,10 @@ def cmd_read(plex: PlexServer, args: argparse.Namespace) -> None:
             "binary media data goes to stdout."
         )
 
-    rating_key = normalize_rating_key(args.rating_key)
+    rating_key = int(args.rating_key)
     item = fetch_item(plex, rating_key)
 
-    item_lib_id = normalize_rating_key(getattr(item, "librarySectionID", 0))
+    item_lib_id = int(getattr(item, "librarySectionID", 0))
     if item_lib_id != args.library_id:
         sys.exit(
             f"ratingKey {rating_key} belongs to library {item_lib_id}, "
@@ -75,7 +74,7 @@ def cmd_read(plex: PlexServer, args: argparse.Namespace) -> None:
         )
 
     part = parts[0]
-    label = _display_title(item)
+    label = display_title(item)
     url = plex.url(part.key, includeToken=True)
 
     LOG.info("File : %s", part.file or "(no server path)")

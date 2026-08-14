@@ -3,8 +3,8 @@
 """Rewriting server-side media paths for export.
 
 Exports carry the paths the Plex server itself sees. When the same files are
-reached by a different route — an SMB share, a different mount point, a
-Windows drive letter — ``--prefix`` swaps the server's library root for one
+reached by a different route - an SMB share, a different mount point, a
+Windows drive letter - ``--prefix`` swaps the server's library root for one
 that makes sense where the export will be read.
 """
 
@@ -72,12 +72,13 @@ def identity(file_path: str) -> str:
     return file_path
 
 
-def make_path_mapper(plex: PlexServer, prefix: Optional[str]) -> PathMapper:
-    """Return a function rewriting server paths onto *prefix*.
+def mapper_for(plex: PlexServer, args: Any) -> PathMapper:
+    """Return the path mapper implied by a command's --prefix argument.
 
     Without a prefix this is the identity, so the default export keeps the
     server's own paths and costs no extra API call.
     """
+    prefix = getattr(args, "prefix", None)
     if not prefix:
         return identity
 
@@ -102,8 +103,3 @@ def make_path_mapper(plex: PlexServer, prefix: Optional[str]) -> PathMapper:
         return _rejoin(prefix, remainder)
 
     return mapper
-
-
-def mapper_for(plex: PlexServer, args: Any) -> PathMapper:
-    """Build the path mapper implied by a command's --prefix argument."""
-    return make_path_mapper(plex, getattr(args, "prefix", None))

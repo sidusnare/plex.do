@@ -132,7 +132,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         try:
             handler(plex, args)
         except UserAccessError as exc:
-            # Raised deep in accounts._server_for_user so the all-users loop
+            # Raised deep in accounts.server_for_user so the all-users loop
             # can skip a user; for a single-user command it is fatal.
             sys.exit(str(exc))
     else:

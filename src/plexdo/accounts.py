@@ -11,9 +11,8 @@ from plexapi.myplex import MyPlexAccount, MyPlexUser
 from plexapi.server import PlexServer
 
 from plexdo.config import cached_config, section_optional, token_store_path
-from plexdo.console import _cell
+from plexdo.console import clean_text
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key
 from plexdo.identify import resolve_identifier
 from plexdo.tokens import lookup, store_token
 
@@ -81,7 +80,7 @@ def _candidate_usernames(user_id: int, user: MyPlexUser) -> List[str]:
     ]
     seen: List[str] = []
     for name in names:
-        text = _cell(name or "")
+        text = clean_text(name or "")
         if text and text not in seen:
             seen.append(text)
     return seen
@@ -150,7 +149,7 @@ def _connect_by_login(
     return server
 
 
-def _server_for_user(plex: PlexServer, user_id: int) -> PlexServer:
+def server_for_user(plex: PlexServer, user_id: int) -> PlexServer:
     """Return a PlexServer scoped to the given user.
 
     Pass user_id=0 to use the admin account (the token from config).
@@ -189,7 +188,7 @@ def _server_for_user(plex: PlexServer, user_id: int) -> PlexServer:
 def _find_user_by_id(account: MyPlexAccount, user_id: int) -> MyPlexUser:
     """Locate a MyPlexUser by numeric id, failing fast if absent."""
     for user in account.users():
-        if normalize_rating_key(user.id) == user_id:
+        if int(user.id) == user_id:
             return user
     sys.exit(f"User ID not found: {user_id}")
 
@@ -207,7 +206,7 @@ def _is_restricted(user: MyPlexUser) -> bool:
     return str(raw or "").strip().lower() not in ("", "0", "false")
 
 
-def _account_type(user: MyPlexUser) -> str:
+def account_type(user: MyPlexUser) -> str:
     """Classify a user account as managed, home, friend, or shared."""
     if _is_restricted(user):
         return "managed"
@@ -226,9 +225,9 @@ USER_ID_ARGUMENTS = ("user_id", "user_a", "user_b", "source_user_id")
 def _user_roster(plex: PlexServer) -> List[Tuple[int, str]]:
     """Return (id, title) for the admin account and every shared user."""
     account = plex.myPlexAccount()
-    roster = [(0, _cell(getattr(account, "title", "") or "admin"))]
+    roster = [(0, clean_text(getattr(account, "title", "") or "admin"))]
     roster.extend(
-        (normalize_rating_key(user.id), _cell(user.title or ""))
+        (int(user.id), clean_text(user.title or ""))
         for user in account.users()
     )
     return roster

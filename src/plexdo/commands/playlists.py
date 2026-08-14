@@ -10,70 +10,69 @@ from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _server_for_user
-from plexdo.cache import _write_cache
+from plexdo.accounts import server_for_user
+from plexdo.cache import write_cache
 from plexdo.console import output
 from plexdo.constants import LOG, MediaItem
-from plexdo.convert import normalize_rating_key
-from plexdo.m3u import _write_m3u
+from plexdo.m3u import write_m3u
 from plexdo.paths import add_prefix_argument, mapper_for
-from plexdo.playlists import _resolve_playlist
-from plexdo.titles import _display_title
+from plexdo.playlists import resolve_playlist
+from plexdo.titles import display_title
 
 
 def cmd_list_playlists(plex: PlexServer, args: argparse.Namespace) -> None:
     """List playlists for a given user."""
-    user_plex = _server_for_user(plex, args.user_id)
+    user_plex = server_for_user(plex, args.user_id)
     rows = [
         {
-            "ratingKey": normalize_rating_key(pl.ratingKey),
+            "ratingKey": int(pl.ratingKey),
             "title": pl.title,
             "items": pl.leafCount,
         }
         for pl in user_plex.playlists()
     ]
-    _write_cache(f"playlists.{args.user_id}", rows)
+    write_cache(f"playlists.{args.user_id}", rows)
     output(rows, args)
 
 
 def cmd_list_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """List items inside a specific playlist for a user."""
-    user_plex = _server_for_user(plex, args.user_id)
-    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
+    user_plex = server_for_user(plex, args.user_id)
+    playlist: Playlist = resolve_playlist(user_plex, args.playlist)
 
     items: List[MediaItem] = list(playlist.items())
     rows = [
         {
             "index": i + 1,
-            "ratingKey": normalize_rating_key(item.ratingKey),
-            "title": _display_title(item),
+            "ratingKey": int(item.ratingKey),
+            "title": display_title(item),
         }
         for i, item in enumerate(items)
     ]
     output(rows, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u, mapper_for(plex, args))
+        write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def cmd_export_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Export an existing playlist to an M3U file."""
-    user_plex = _server_for_user(plex, args.user_id)
-    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
+    user_plex = server_for_user(plex, args.user_id)
+    playlist: Playlist = resolve_playlist(user_plex, args.playlist)
 
     items: List[MediaItem] = list(playlist.items())
     if not items:
-        sys.exit(f"Playlist '{args.playlist}' is empty — nothing to export.")
+        sys.exit(f"Playlist '{args.playlist}' is empty - nothing to export.")
 
     LOG.info("Exporting %d items from '%s' to %s", len(items), args.playlist, args.m3u)
-    _write_m3u(items, args.m3u, mapper_for(plex, args))
+    write_m3u(items, args.m3u, mapper_for(plex, args))
     print(f"Exported {len(items)} items to: {args.m3u}")
 
 
 def cmd_remove_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Delete a playlist from a user's account."""
-    user_plex = _server_for_user(plex, args.user_id)
-    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
+    user_plex = server_for_user(plex, args.user_id)
+    playlist: Playlist = resolve_playlist(user_plex, args.playlist)
 
     LOG.info("Removing playlist '%s' for user_id=%d", args.playlist, args.user_id)
     if args.dry_run:
@@ -85,10 +84,10 @@ def cmd_remove_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
 
 def cmd_append_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Append one or more items to an existing playlist."""
-    user_plex = _server_for_user(plex, args.user_id)
-    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
+    user_plex = server_for_user(plex, args.user_id)
+    playlist: Playlist = resolve_playlist(user_plex, args.playlist)
 
-    rating_keys = [normalize_rating_key(k) for k in args.rating_keys]
+    rating_keys = [int(k) for k in args.rating_keys]
     new_items: List[MediaItem] = []
     for rk in rating_keys:
         try:
@@ -104,8 +103,8 @@ def cmd_append_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     preview_rows = [
         {
             "index": i + 1,
-            "ratingKey": normalize_rating_key(item.ratingKey),
-            "title": _display_title(item),
+            "ratingKey": int(item.ratingKey),
+            "title": display_title(item),
         }
         for i, item in enumerate(new_items)
     ]

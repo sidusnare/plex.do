@@ -8,7 +8,7 @@ import json
 from plexdo.constants import CACHE_DIR, LOG
 
 
-def _write_cache(name: str, data: List[Dict[str, Any]]) -> None:
+def write_cache(name: str, data: List[Dict[str, Any]]) -> None:
     """Atomically write data to the completion cache, silently ignoring errors."""
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)

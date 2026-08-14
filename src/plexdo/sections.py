@@ -9,8 +9,7 @@ import sys
 from plexapi.exceptions import NotFound
 from plexapi.server import PlexServer
 
-from plexdo.console import _cell
-from plexdo.convert import normalize_rating_key
+from plexdo.console import clean_text
 from plexdo.identify import resolve_identifier
 
 
@@ -37,7 +36,7 @@ LIBRARY_ID_ARGUMENT = "library_id"
 def _library_roster(plex: PlexServer) -> List[Tuple[int, str]]:
     """Return (id, title) for every library section on the server."""
     return [
-        (normalize_rating_key(section.key), _cell(section.title or ""))
+        (int(section.key), clean_text(section.title or ""))
         for section in plex.library.sections()
     ]
 

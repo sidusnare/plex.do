@@ -100,11 +100,11 @@ happens once rather than on every run.
 appear in a Plex username, so it never collides with a real one. The file is
 written atomically with mode 0600. A file from an earlier version holding a
 single bare token is read as the admin token and converted to JSON on the next
-write — no manual migration needed.
+write - no manual migration needed.
 
 Environment variables are expanded in every value. A name that is not set is
 left as literal text and warned about, rather than failing later as a puzzling
-"no such file". `%` needs no escaping — interpolation is disabled, so a
+"no such file". `%` needs no escaping - interpolation is disabled, so a
 password may contain one freely.
 
 Both the config file and the token file are checked at startup and a warning is
@@ -114,7 +114,7 @@ printed if either is readable by group or other.
 
 Every command accepts `-f/--format`, `-v/--verbose`, `--debug`, `--dry-run`,
 and `-V/--version`, and they may be given either before or after the command
-name — `plex.do --json list-users` and `plex.do list-users --json` are
+name - `plex.do --json list-users` and `plex.do list-users --json` are
 equivalent. Logging always goes to stderr, so machine-readable output on stdout
 is safe to pipe.
 
@@ -194,12 +194,31 @@ plex.do remove-playlist 0 "Mix"
 ```
 
 A user with no libraries shared to them cannot be acted on, even by the server
-admin — Plex scopes each token to what that user can see. Commands targeting
+admin - Plex scopes each token to what that user can see. Commands targeting
 one such user stop with an explanation; `copy-playlist-all-users` skips them
 with a one-line warning and carries on.
 
+`copy-playlist-all-users` prints the item list once and then one line per
+user, since the list is identical for everyone:
+
+```
+Movie Night (3 items)
+┌───────┬───────────┬───────────────────┐
+│ index │ ratingKey │ title             │
+└───────┴───────────┴───────────────────┘
+
+  skipped  Fred  (source user)
+  created  Alice  (Movie Night)
+  created  Bob  (Movie Night admin copy)
+  skipped  Cara  (both 'Movie Night' and 'Movie Night admin copy' already exist)
+  skipped  Dan  (access denied (401) - no libraries are shared with 'Dan')
+```
+
+Lines appear as each user completes, so a long run shows progress. In a
+machine-readable format the outcomes come back as one record per user.
+
 Without `-o/--overwrite`, a copy that collides with both `Mix` and
-`Mix admin copy` is skipped with a warning rather than overwriting anything.
+`Mix admin copy` is skipped rather than overwriting anything.
 
 ### Watched-state sync
 
@@ -226,8 +245,8 @@ M3U files contain **Plex server filesystem paths**, not HTTP URLs, so they are
 meant to be read on or from the server's filesystem. Photo libraries export a
 single self-contained HTML gallery instead.
 
-Where the media is reached by a different route — an SMB share, another mount
-point, a Windows drive letter — `-p/--prefix` swaps the server's library root
+Where the media is reached by a different route - an SMB share, another mount
+point, a Windows drive letter - `-p/--prefix` swaps the server's library root
 for one that makes sense there:
 
 ```bash
@@ -268,8 +287,8 @@ version, last updated), active sessions, shared users, system accounts,
 reachable addresses, library scans in progress, other background activity, and
 scheduled maintenance tasks.
 
-A section that cannot be read — reachable addresses need a plex.tv round trip,
-for instance — is reported as a warning and left empty rather than losing the
+A section that cannot be read - reachable addresses need a plex.tv round trip,
+for instance - is reported as a warning and left empty rather than losing the
 whole report. `--format csv` and `--format clixml` are flat by nature and need
 `--section`, since the eight sections have different shapes.
 
@@ -287,7 +306,7 @@ Completion is provided for **bash, zsh, and fish**. All three cover user and lib
 *and* their titles, rating keys, playlist names and keys, and photo album
 names, reading a 15-minute cache under `~/.cache/plex.do` that the list
 commands populate as a side effect. Numeric IDs are shown with the title they
-belong to — `7  (Alice)`, `101  (Breaking Bad - Pilot)` — and only the ID is
+belong to - `7  (Alice)`, `101  (Breaking Bad - Pilot)` - and only the ID is
 inserted once you narrow to one. When a cache is stale it refreshes in the
 background, so completion never blocks.
 
@@ -319,7 +338,7 @@ Installing from PyPI rather than a checkout, the script ships as package data:
 source "$(python3 -c 'import plexdo,pathlib;print(pathlib.Path(plexdo.__file__).parent/"data/plex.do.bash")')"
 ```
 
-The bash script needs no `bash-completion` package — only bash 4+ and
+The bash script needs no `bash-completion` package - only bash 4+ and
 `python3`. The zsh and fish scripts likewise depend only on `python3`.
 
 ## Layout
@@ -374,12 +393,12 @@ Linux, macOS, and Windows are all supported.
 On Windows, prefer the `plexdo` alias over `plex.do`: both are installed, but a
 name containing a dot interacts awkwardly with `PATHEXT` resolution in some
 shells. Config and cache live under `%USERPROFILE%\.local\etc` and
-`%USERPROFILE%\.cache` respectively — functional, though not the native
+`%USERPROFILE%\.cache` respectively - functional, though not the native
 convention.
 
 Two caveats specific to Windows. Protecting the token file is your
 responsibility there: `chmod` cannot restrict it, so place it somewhere your
-user account alone can read. And `--password` scrubbing is best-effort — the
+user account alone can read. And `--password` scrubbing is best-effort - the
 `Py_GetArgcArgv` trick that hides the value from `ps` has no Windows
 equivalent, so the value stays visible in the process list; a warning says so.
 Use the config file or the interactive prompt instead.
@@ -389,7 +408,7 @@ is absent, which matters under Git Bash.
 
 ## License
 
-GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
+GNU General Public License v3.0 or later - see [LICENSE](LICENSE).
 
 This program is free software: you may redistribute and/or modify it under the
 terms of the GPL as published by the Free Software Foundation, either version 3

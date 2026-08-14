@@ -11,14 +11,14 @@ from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 from plexapi.video import Episode, Movie, Show
 
-from plexdo.accounts import _server_for_user
-from plexdo.airdates import _episodes_in_same_season, _prompt_for_date, _resolve_episode_date
+from plexdo.accounts import server_for_user
+from plexdo.airdates import episodes_in_same_season, prompt_for_date, resolve_episode_date
 from plexdo.constants import LOG, MediaItem
-from plexdo.convert import normalize_rating_key, parse_date
-from plexdo.m3u import _write_m3u
+from plexdo.convert import parse_date
+from plexdo.m3u import write_m3u
 from plexdo.paths import add_prefix_argument, mapper_for
-from plexdo.playlists import _resolve_playlist, finalize_playlist
-from plexdo.titles import _fetch_show, _non_special_episodes, _shuffle_list
+from plexdo.playlists import finalize_playlist, resolve_playlist
+from plexdo.titles import fetch_show, non_special_episodes, shuffle_list
 
 
 def _round_robin(episode_lists: List[List[Episode]]) -> Iterator[Episode]:
@@ -37,12 +37,12 @@ def _round_robin(episode_lists: List[List[Episode]]) -> Iterator[Episode]:
 
 def cmd_build_interleaved(plex: PlexServer, args: argparse.Namespace) -> None:
     """Build a round-robin interleaved playlist from multiple shows."""
-    rating_keys = [normalize_rating_key(k) for k in args.rating_keys]
+    rating_keys = [int(k) for k in args.rating_keys]
     episode_lists: List[List[Episode]] = []
 
     for rk in rating_keys:
-        show = _fetch_show(plex, rk)
-        eps = _non_special_episodes(show)
+        show = fetch_show(plex, rk)
+        eps = non_special_episodes(show)
         LOG.info("Show '%s': %d episodes", show.title, len(eps))
         episode_lists.append(eps)
 
@@ -50,7 +50,7 @@ def cmd_build_interleaved(plex: PlexServer, args: argparse.Namespace) -> None:
     finalize_playlist(plex, args.name, items, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u, mapper_for(plex, args))
+        write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def _chronological_sort_key(
@@ -72,24 +72,24 @@ def _build_chronological_items(
         LOG.debug("Processing ratingKey=%d type=%s", rk, type(media_item).__name__)
 
         if isinstance(media_item, Show):
-            all_eps = _non_special_episodes(media_item)
+            all_eps = non_special_episodes(media_item)
             for ep in all_eps:
-                season_peers = _episodes_in_same_season(ep, all_eps)
-                resolved = _resolve_episode_date(ep, season_peers, last_used_date)
+                season_peers = episodes_in_same_season(ep, all_eps)
+                resolved = resolve_episode_date(ep, season_peers, last_used_date)
                 last_used_date = resolved
                 dated_items.append((ep, resolved))
 
         elif isinstance(media_item, Movie):
             dt = parse_date(media_item.originallyAvailableAt)
             if dt is None:
-                dt = _prompt_for_date(media_item, last_used_date)  # type: ignore[arg-type]
+                dt = prompt_for_date(media_item, last_used_date)  # type: ignore[arg-type]
             last_used_date = dt
             dated_items.append((media_item, dt))
 
         else:
             sys.exit(
                 f"ratingKey {rk} is type '{type(media_item).__name__}' "
-                "— only Show and Movie are supported."
+                "- only Show and Movie are supported."
             )
 
     return dated_items
@@ -97,7 +97,7 @@ def _build_chronological_items(
 
 def cmd_build_chronological(plex: PlexServer, args: argparse.Namespace) -> None:
     """Build a date-sorted playlist from shows and/or movies."""
-    rating_keys = [normalize_rating_key(k) for k in args.rating_keys]
+    rating_keys = [int(k) for k in args.rating_keys]
     dated_items = _build_chronological_items(plex, rating_keys)
 
     dated_items.sort(key=_chronological_sort_key)
@@ -106,22 +106,22 @@ def cmd_build_chronological(plex: PlexServer, args: argparse.Namespace) -> None:
     finalize_playlist(plex, args.name, items, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u, mapper_for(plex, args))
+        write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def cmd_build_randomize(plex: PlexServer, args: argparse.Namespace) -> None:
     """Randomize a playlist and save to a new destination playlist."""
-    user_plex = _server_for_user(plex, args.user_id)
-    src: Playlist = _resolve_playlist(user_plex, args.source)
+    user_plex = server_for_user(plex, args.user_id)
+    src: Playlist = resolve_playlist(user_plex, args.source)
 
     all_items: List[MediaItem] = list(src.items())
-    randomized: List[MediaItem] = _shuffle_list(all_items)
+    randomized: List[MediaItem] = shuffle_list(all_items)
 
     LOG.info("Randomized %d items", len(randomized))
     finalize_playlist(user_plex, args.dest, randomized, args)
 
     if args.m3u:
-        _write_m3u(randomized, args.m3u, mapper_for(user_plex, args))
+        write_m3u(randomized, args.m3u, mapper_for(user_plex, args))
 
 
 def register(

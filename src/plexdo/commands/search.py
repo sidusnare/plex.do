@@ -7,12 +7,11 @@ import argparse
 
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _server_for_user
+from plexdo.accounts import server_for_user
 from plexdo.console import output
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key
 from plexdo.sections import resolve_sections
-from plexdo.titles import _display_title
+from plexdo.titles import display_title
 
 
 _SEARCH_MEDIA_TYPES = ("movie", "show", "episode", "track", "photo", "album", "artist")
@@ -21,14 +20,14 @@ _SEARCH_MEDIA_TYPES = ("movie", "show", "episode", "track", "photo", "album", "a
 def _search_result_row(item: Any) -> Dict[str, Any]:
     """Build a result row from a search hit, resolving the library id."""
     # plexapi attaches a librarySectionID attribute to all fetched items.
-    lib_id = normalize_rating_key(
+    lib_id = int(
         getattr(item, "librarySectionID", 0)
     )
     return {
-        "ratingKey": normalize_rating_key(item.ratingKey),
+        "ratingKey": int(item.ratingKey),
         "libraryId": lib_id,
         "type":      item.type,
-        "title":     _display_title(item),
+        "title":     display_title(item),
     }
 
 
@@ -65,7 +64,7 @@ def _search_all_sections(
 
 def cmd_search(plex: PlexServer, args: argparse.Namespace) -> None:
     """Search Plex for titles matching a query string."""
-    user_plex = _server_for_user(plex, args.user_id)
+    user_plex = server_for_user(plex, args.user_id)
     library_id: Optional[int] = args.library_id
     media_type: Optional[str] = args.media_type
 

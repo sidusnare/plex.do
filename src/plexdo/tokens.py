@@ -75,7 +75,7 @@ def admin_token(path: Path, username: Optional[str]) -> Optional[str]:
     """Return the admin token.
 
     Tries the configured admin username, then the reserved key, and finally a
-    store holding exactly one entry — which is what a fresh `login` with no
+    store holding exactly one entry - which is what a fresh `login` with no
     configured username leaves behind.
     """
     store = load_store(path)

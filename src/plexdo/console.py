@@ -35,7 +35,7 @@ def output(data: Any, args: "argparse.Namespace") -> None:
         print(data)
 
 
-def _cell(value: Any) -> str:
+def clean_text(value: Any) -> str:
     """Convert a table cell value to a clean string, stripping control characters."""
     return str(value).strip()
 
@@ -116,7 +116,7 @@ def print_table(rows: List[Dict[str, Any]]) -> None:
     if not rows:
         return
     headers = list(rows[0].keys())
-    cells = [[_printable(_cell(row.get(h, ""))) for h in headers] for row in rows]
+    cells = [[_printable(clean_text(row.get(h, ""))) for h in headers] for row in rows]
     widths = [
         max([_display_width(h)] + [_display_width(r[i]) for r in cells])
         for i, h in enumerate(headers)
@@ -136,7 +136,7 @@ def print_metadata(record: Dict[str, Any]) -> None:
     """Print a key-value metadata record as a box-drawn, aligned table."""
     if not record:
         return
-    pairs = [(_printable(k), _printable(_cell(v))) for k, v in record.items()]
+    pairs = [(_printable(k), _printable(clean_text(v))) for k, v in record.items()]
     widths = [
         max(_display_width(k) for k, _ in pairs),
         max(_display_width(v) for _, v in pairs),

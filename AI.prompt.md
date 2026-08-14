@@ -27,21 +27,21 @@ src/plexdo/
 ├── logs.py             configure_logging
 ├── config.py           check_file_permissions, config_optional, load_config,
 │                       read_token, connect_plex
-├── cache.py            _write_cache
-├── convert.py          normalize_rating_key, parse_date
-├── console.py          output, _cell, _display_width, _pad, _rule,
+├── cache.py            write_cache
+├── convert.py          parse_date, format_duration
+├── console.py          output, clean_text, display_width, pad, rule,
 │                       print_table, print_metadata
-├── titles.py           _display_title, _fetch_show, _non_special_episodes,
-│                       _shuffle_list, fetch_item
+├── titles.py           display_title, fetch_show, non_special_episodes,
+│                       shuffle_list, fetch_item
 ├── identify.py         resolve_identifier (shared by users and libraries)
 ├── sections.py         resolve_section, resolve_sections, library resolution
-├── accounts.py         _server_for_user, _find_user_by_id, _is_restricted,
-│                       _account_type
-├── playlists.py        _resolve_playlist, finalize_playlist,
-│                       _resolve_dest_name, _copy_playlist_to
-├── m3u.py              _write_m3u
-├── photos.py           _collect_photos, _collect_library_items, _photo_file_path
-├── sorting.py          _alpha_sort_key, _date_sort_key, _apply_sort
+├── accounts.py         server_for_user, _find_user_by_id, _is_restricted,
+│                       account_type
+├── playlists.py        resolve_playlist, finalize_playlist,
+│                       _resolve_dest_name, copy_playlist_to
+├── m3u.py              write_m3u
+├── photos.py           collect_photos, collect_library_items, photo_file_path
+├── sorting.py          _alpha_sort_key, _date_sort_key, apply_sort
 ├── gallery.py          Spotlight.js HTML gallery
 ├── airdates.py         missing air-date estimation
 ├── security.py         argv scrubbing for --password
@@ -66,11 +66,11 @@ src/plexdo/
 
 Every module in `commands/` exposes exactly three names:
 
-- `register(sub, parents)` — adds its subparsers to the top-level
+- `register(sub, parents)` - adds its subparsers to the top-level
   `add_subparsers` action, passing `parents=parents` on every `add_parser`
   call so each subcommand inherits the global flags
-- `COMMANDS` — maps command name to handler
-- `REQUIRES_PLEX` — the subset needing a connected server; `auth` has an empty
+- `COMMANDS` - maps command name to handler
+- `REQUIRES_PLEX` - the subset needing a connected server; `auth` has an empty
   frozenset because `login` and `write-config-example` run before a token exists
 
 `commands/__init__.py` holds a `MODULES` tuple (whose order sets the order of
@@ -79,25 +79,55 @@ which merge the per-module tables. Adding a command means adding a module and
 listing it in `MODULES`; `cli.py` never changes.
 
 Shared logic must live in the core modules, not be duplicated across command
-modules — pylint's `duplicate-code` check will catch it. In particular
+modules - pylint's `duplicate-code` check will catch it. In particular
 `resolve_section` / `resolve_sections` and `fetch_item` exist because the
 library-lookup and ratingKey-lookup blocks would otherwise be repeated across
 four command modules.
 
 ### Packaging
 
-`[project.scripts]` maps both `"plex.do"` and `plexdo` to `plexdo.cli:main` —
+`[project.scripts]` maps both `"plex.do"` and `plexdo` to `plexdo.cli:main` -
 a dot in a console-script name is valid. Dependencies are `PlexAPI>=4.15.10`
 and `requests>=2.31`; `requires-python = ">=3.11"`. Ship the completion script
 as package data via `[tool.setuptools.package-data]` so it can be located at
 runtime through `plexdo.__file__`. `python -m build` must produce an sdist and
 wheel that both pass `twine check`.
 
+## CHARACTER SET
+
+Source, completions, the man page, and the build files are **plain ASCII**.
+Write `-` not an em or en dash, `->` not an arrow, `>=` not the inequality
+sign, `...` not an ellipsis, and a straight `'` not a curly quote. This
+applies to comments, docstrings, and user-facing message strings alike; a
+warning printed to a terminal has no business containing an em dash.
+
+Two deliberate exceptions, both about output rather than prose: `console.py`
+holds the box-drawing glyphs as `\uXXXX` escapes, so the file itself stays
+ASCII while the tables still draw; and the markdown docs keep literal box
+characters where they reproduce what the program prints or draw a `tree`-style
+directory listing.
+
+## NAMING
+
+A leading underscore means **module-private**. A helper another module imports
+is package API and must not carry one - otherwise the convention says nothing
+and every reader has to check. `clean_text`, `display_title`,
+`server_for_user`, `write_m3u` and the rest are public for that reason; the
+84 helpers that genuinely stay inside one module keep their underscore.
+
+Names should say what they do: the text-cleaning helper is `clean_text`, not
+`_cell`, because its job is stripping the stray carriage returns in Plex
+metadata, not "being a cell".
+
+Two functions where one will do is a smell worth removing - `mapper_for` and
+`make_path_mapper` were merged, and a one-line alias for
+`parse_date(ep.originallyAvailableAt)` was inlined.
+
 ## GENERAL REQUIREMENTS
 
 - Python 3.11+
 - Fully type-annotate every function, parameter, and return type
-- Must pass pylint ≥ 9.5 (target 10.0) across the whole package
+- Must pass pylint >= 9.5 (target 10.0) across the whole package
 - Follow the Google Python style guide; small, single-purpose functions
 - No dead code, no duplicate logic, no unused variables, no global mutable state
 - No bare `except`; broad excepts only where explicitly noted, each with `# pylint: disable=broad-except`
@@ -112,7 +142,7 @@ Two pylint traps to design around from the start:
 ## IMPORTS
 
 Each module imports only what it uses, ordered standard library, then
-third-party (`requests`, `plexapi`), then first-party (`plexdo.*`) — pylint
+third-party (`requests`, `plexapi`), then first-party (`plexdo.*`) - pylint
 enforces this grouping. The full set used across the package:
 
 ```python
@@ -190,7 +220,7 @@ Return a stripped optional `[plex]` value, or `None` when absent or empty.
 The version is `major.minor.revision`. `__version__` in
 `src/plexdo/__init__.py` and `version` in `pyproject.toml` must always agree.
 
-**Increment the revision — the third field — every time a release archive is
+**Increment the revision - the third field - every time a release archive is
 produced.** Major and minor move only on explicit instruction, never
 automatically because a change felt significant.
 
@@ -221,22 +251,22 @@ once on the top-level parser with ordinary `False` defaults, and once on an
 The SUPPRESS default is essential, not cosmetic. A subparser parses into its
 own namespace and then copies **every** attribute onto the main namespace, so
 ordinary `False` defaults on the inherited copies would silently clobber a flag
-given before the subcommand — `plex.do --json list-users` would emit a table.
+given before the subcommand - `plex.do --json list-users` would emit a table.
 With SUPPRESS the attribute only exists when the flag was actually passed, so
 whichever position it appears in wins and the other is left untouched.
 
 ## OUTPUT
 
 ### `output(data, args)`
-`--json` → `json.dumps(data, default=str)`. Otherwise `print_table` for a
+`--json` -> `json.dumps(data, default=str)`. Otherwise `print_table` for a
 list-of-dicts, else plain `print`.
 
-### `_cell(value)`
+### `clean_text(value)`
 `str(value).strip()`. Plex metadata contains stray `\r`, which makes a printed
 row's trailing pad overwrite the start of the line and appear as a blank line
 after every row. Every value that is measured or printed must pass through this.
 
-### `_display_width(text)`
+### `display_width(text)`
 Terminal display width, **not** `len()`. CJK glyphs (`east_asian_width` in
 `W`/`F`) occupy two columns and combining marks occupy none, so a `len()`-padded
 table drifts out of alignment on any library holding non-Latin titles. Pair it
@@ -244,7 +274,7 @@ with `_pad(text, width)` which replaces `ljust` everywhere.
 
 ### `print_table(rows)` / `print_metadata(record)`
 UTF-8 box-drawn tables using `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`, with a `_rule(widths, l, m, r)`
-helper, column widths computed from `_display_width`, and one space of padding
+helper, column widths computed from `display_width`, and one space of padding
 each side of every cell:
 
 ```
@@ -257,12 +287,11 @@ each side of every cell:
 
 ## SHARED HELPERS
 
-- `normalize_rating_key(raw) -> int` — `int(raw)`, raising `ValueError` with a clear message
-- `parse_date(value: DateInput) -> Optional[datetime]` — accepts `datetime`, `date`, `"%Y-%m-%d %H:%M:%S"`, `"%Y-%m-%d"`
-- `_display_title(item) -> str` — `Episode` → `"grandparentTitle - title"`, everything else → `item.title`. Use in every table, preview, M3U `#EXTINF`, and HTML alt/title
-- `_non_special_episodes(show)` — episodes with `seasonNumber > 0`
-- `_shuffle_list(lst)` — Fisher-Yates via `secrets.randbelow`
-- `_resolve_playlist(user_plex, identifier)` — try `int()` → `fetchItem` (assert `isinstance(..., Playlist)`); else look up by title; `sys.exit` if absent
+- `parse_date(value: DateInput) -> Optional[datetime]` - accepts `datetime`, `date`, `"%Y-%m-%d %H:%M:%S"`, `"%Y-%m-%d"`
+- `display_title(item) -> str` - `Episode` -> `"grandparentTitle - title"`, everything else -> `item.title`. Use in every table, preview, M3U `#EXTINF`, and HTML alt/title
+- `non_special_episodes(show)` - episodes with `seasonNumber > 0`
+- `shuffle_list(lst)` - Fisher-Yates via `secrets.randbelow`
+- `resolve_playlist(user_plex, identifier)` - try `int()` -> `fetchItem` (assert `isinstance(..., Playlist)`); else look up by title; `sys.exit` if absent
 
 ### Identifier resolution (users and libraries)
 
@@ -276,13 +305,13 @@ warnings and errors, so a library miss says "Library not found ... run
 Rules, in order:
 
 - Titles match exactly first, then case-insensitively.
-- More than one title match → `sys.exit`, listing the colliding IDs.
-- Numeric value that is a real ID → use it; if it is *also* some other entry's
+- More than one title match -> `sys.exit`, listing the colliding IDs.
+- Numeric value that is a real ID -> use it; if it is *also* some other entry's
   title, warn naming the entry that was not selected.
-- Numeric value that is not a real ID but *is* a title → resolve by title.
-- Numeric value matching nothing → return unchanged so the downstream lookup
+- Numeric value that is not a real ID but *is* a title -> resolve by title.
+- Numeric value matching nothing -> return unchanged so the downstream lookup
   produces the precise error.
-- Non-numeric matching nothing → `sys.exit` pointing at the list command.
+- Non-numeric matching nothing -> `sys.exit` pointing at the list command.
 
 The duplicate-title abort applies only when resolving *by title*; a numeric ID
 is unambiguous and must still work on a server with two identically titled
@@ -291,22 +320,22 @@ entries.
 ### Library identifier resolution
 
 Every argument naming a library accepts an ID or a title, so all six are plain
-strings with `metavar="LIBRARY"` — never `type=int`. They are the positionals
+strings with `metavar="LIBRARY"` - never `type=int`. They are the positionals
 of `list-titles`, `export-titles`, and `read`, the optional positional of
 `rescan`, `--library-id` on `search`, and `-l/--library` on `copy-watched`.
 All use the attribute name `library_id`.
 
 `sections.resolve_library_arguments(plex, args)` runs from `cli.main` next to
 the user resolver, rewriting `library_id` in place so handlers always receive
-an int. It must return early when the attribute is absent *or None* — `rescan
---status` legitimately has no library — so those commands cost no extra API
+an int. It must return early when the attribute is absent *or None* - `rescan
+--status` legitimately has no library - so those commands cost no extra API
 call.
 
 ### User identifier resolution
 
 Every argument naming a user accepts **either** a numeric user ID **or** the
 user's title, so all such argparse arguments are plain strings with
-`metavar="USER"` — never `type=int`.
+`metavar="USER"` - never `type=int`.
 
 `accounts.resolve_user_arguments(plex, args)` is called once from `cli.main`
 after connecting and before dispatch, rewriting every attribute in
@@ -319,90 +348,90 @@ call, and skip the fetch entirely when no user argument is present.
 `[(0, admin_title)] + [(id, title) for each shared user]`:
 
 - Titles match exactly first, then case-insensitively.
-- More than one title match → `sys.exit`, listing the colliding IDs and asking
+- More than one title match -> `sys.exit`, listing the colliding IDs and asking
   for the numeric ID.
-- Numeric value that is a real user ID → use it. If it is *also* some other
+- Numeric value that is a real user ID -> use it. If it is *also* some other
   user's title, warn naming the user that was not selected.
-- Numeric value that is not a real ID but *is* a title → resolve by title.
-- Numeric value matching nothing → return it unchanged so the downstream
+- Numeric value that is not a real ID but *is* a title -> resolve by title.
+- Numeric value matching nothing -> return it unchanged so the downstream
   lookup produces the precise error.
-- Non-numeric value matching nothing → `sys.exit` pointing at `list-users`.
+- Non-numeric value matching nothing -> `sys.exit` pointing at `list-users`.
 
 Note the duplicate-title abort applies only when resolving *by title*; passing
 a numeric ID is unambiguous and must still work on a server that happens to
 have two identically titled users.
 
-### `_server_for_user(plex, user_id) -> PlexServer`
+### `server_for_user(plex, user_id) -> PlexServer`
 
 `user_id == 0` returns the admin `plex` object directly with no API call.
 Otherwise call `user.get_token(plex.machineIdentifier)` and build a new
-`PlexServer`. **Do not use `switchHomeUser()`** — it only works for Plex Home
+`PlexServer`. **Do not use `switchHomeUser()`** - it only works for Plex Home
 and raises 401 for ordinary shared users. Every `user_id` help string must
 document `0 = admin`.
 
 ## COMPLETION CACHE
 
-`_write_cache(name, data)` writes JSON atomically (`.tmp` then `Path.replace`)
+`write_cache(name, data)` writes JSON atomically (`.tmp` then `Path.replace`)
 into `CACHE_DIR`, silently swallowing `OSError`. Called as a side effect, before
-`output()`, by: `list-libraries` → `libraries.json`; `list-titles <id>` →
-`titles.<id>.json`; `list-users` → `users.json`; `list-playlists <uid>` →
+`output()`, by: `list-libraries` -> `libraries.json`; `list-titles <id>` ->
+`titles.<id>.json`; `list-users` -> `users.json`; `list-playlists <uid>` ->
 `playlists.<uid>.json`.
 
 ## PLAYLISTS: LOOKUP AND CREATION
 
 Every argument naming an **existing** playlist accepts a title or a ratingKey,
-resolved through `_resolve_playlist`; no command may call
+resolved through `resolve_playlist`; no command may call
 `plex.playlist(name)` directly. That covers `list-playlist`,
 `export-playlist`, `remove-playlist`, `append-playlist`, the source of
 `build-randomize`, and the source of both copy commands.
 
 Every command that **creates** a playlist takes `-o/--overwrite`:
 `build-interleaved`, `build-chronological`, `build-randomize`, and the two
-copy commands. `finalize_playlist` enforces it centrally — a name collision
+copy commands. `finalize_playlist` enforces it centrally - a name collision
 without the flag exits reporting the existing ratingKey and making clear
 nothing was created or removed, and the check happens **before** the preview
 so a doomed run fails immediately rather than after a screen of output.
 
-Because `finalize_playlist` performs the replacement, `_copy_playlist_to` must
+Because `finalize_playlist` performs the replacement, `copy_playlist_to` must
 *not* delete as well: `_resolve_dest_name` only reports a replacement when
 `--overwrite` was given, so both would be acting on the same condition.
 
 ## PLAYLIST BUILDING MODEL
 
 Every build command must (1) fully construct the item list in memory,
-(2) validate it is non-empty, (3) print a numbered preview via `_display_title`,
+(2) validate it is non-empty, (3) print a numbered preview via `display_title`,
 (4) make exactly one `plex.createPlaylist(name, items=items)` call.
 `finalize_playlist(plex, name, items, args)` enforces this and honours `--dry-run`.
 
 ## EXPORT PATH REWRITING
 
-`paths.py` provides `make_path_mapper(plex, prefix)`, returning a
+`paths.py` provides `mapper_for(plex, args)`, returning a
 `Callable[[str], str]`. Without a prefix it returns `identity`, so the default
 export keeps the server's paths and costs no extra API call; the library roots
 are only fetched when a prefix is actually given.
 
 The prefix replaces the **library root**, not an arbitrary leading substring,
 so `library_roots()` collects `section.locations` from every section and sorts
-them longest-first — otherwise a library nested inside another's tree matches
+them longest-first - otherwise a library nested inside another's tree matches
 the wrong root. Rejoin using the prefix's own separator style, so a Windows
 prefix yields backslashes throughout. A path under no known root is appended
 whole and warned about exactly once, since spamming per file would drown the
 export.
 
-`_write_m3u` and `_write_gallery_html` take the mapper as an argument
+`write_m3u` and `write_gallery_html` take the mapper as an argument
 defaulting to `identity`; they must not reach for `plex` themselves.
 
 All seven export commands take `-p/--prefix`: `export-playlist`,
 `export-titles`, and the five with `--m3u`. Register it through
-`paths.add_prefix_argument(parser)` — repeating the help text inline in three
+`paths.add_prefix_argument(parser)` - repeating the help text inline in three
 command modules trips pylint's `duplicate-code`.
 
-## M3U EXPORT — `_write_m3u(items, path)`
+## M3U EXPORT - `write_m3u(items, path)`
 
 Plex **server filesystem paths only**, from `item.media[].parts[].file`. Skip
 items with no path (no placeholder line); include every part of a multi-part
-item. Duration is `item.duration` ms → seconds, falling back to `-1`. The
-`#EXTINF` title uses `_display_title`.
+item. Duration is `item.duration` ms -> seconds, falling back to `-1`. The
+`#EXTINF` title uses `display_title`.
 
 ```
 #EXTM3U
@@ -416,7 +445,7 @@ item. Duration is `item.duration` ms → seconds, falling back to `-1`. The
 Columns `id`, `type`, `title`. Writes the libraries cache.
 
 ### `list-titles <library_id> [--album ALBUM]`
-show/movie use `section.all()`; photo libraries use `_collect_photos`. Columns
+show/movie use `section.all()`; photo libraries use `collect_photos`. Columns
 `ratingKey`, `title`. Writes `titles.<id>.json`. `--album` warns and is ignored
 for non-photo libraries.
 
@@ -426,12 +455,12 @@ Runs as the given user. Searches every library unless `--library-id` scopes it.
 `libtype`. A per-library failure logs a warning and continues rather than
 aborting. Columns `ratingKey`, `libraryId` (from `item.librarySectionID`),
 `type`, `title`. Implement one `_search_in_section` helper and have
-`_search_all_sections` call it — do not inline a second copy of the loop.
+`_search_all_sections` call it - do not inline a second copy of the loop.
 
 ### `list-users`
 Columns `id`, `type`, `title`; writes the users cache.
 
-`_account_type(user)` returns `managed` / `home` / `friend` / `shared`.
+`account_type(user)` returns `managed` / `home` / `friend` / `shared`.
 Note that plexapi exposes `restricted` as the **raw XML string**, not a bool, so
 a plain truth test sees `"0"` as True and mislabels every account as managed.
 `_is_restricted` must treat `""`, `"0"`, and `"false"` as false while still
@@ -441,7 +470,7 @@ accepting a real bool.
 Columns `ratingKey`, `title`, `items`; writes the playlists cache.
 
 ### `list-playlist <user_id> <playlist|ratingKey> [--m3u PATH]`
-Accepts either form via `_resolve_playlist`. Columns `index`, `ratingKey`, `title`.
+Accepts either form via `resolve_playlist`. Columns `index`, `ratingKey`, `title`.
 
 ### `list-show <rating_key> [--m3u PATH]`
 Fails fast if the item is not a `Show`. Columns `index`, `ratingKey`, `season`,
@@ -450,8 +479,8 @@ Fails fast if the item is not a `Show`. Columns `index`, `ratingKey`, `season`,
 ### `show-metadata <rating_key>`
 Dispatch through a `_METADATA_BUILDERS` dict keyed on `item.type`, falling back
 to the base builder. Base fields: `ratingKey, type, title, year, contentRating,
-rating, duration` (ms → `H:MM:SS` via `_format_duration`), `addedAt, updatedAt,
-summary`. Extra fields — `episode`: `show, season, episode, airDate, studio`;
+rating, duration` (ms -> `H:MM:SS` via `format_duration`), `addedAt, updatedAt,
+summary`. Extra fields - `episode`: `show, season, episode, airDate, studio`;
 `movie`: `studio, airDate, tagline, genres, directors`; `show`: `studio,
 firstAired, seasons, episodes, genres, network`; `track`: `album, artist,
 trackNumber`.
@@ -467,8 +496,8 @@ plex.do read 3 12345 > file.mkv
 Validate that the item's `librarySectionID` matches `library_id`. Warn if the
 item has multiple media/parts and stream only the first. Use
 `requests.get(url, stream=True, timeout=30)` with 64 KB chunks written to
-`sys.stdout.buffer`. Catch `BrokenPipeError` silently — that is the normal exit
-when a player quits early — and `sys.exit` on `requests.HTTPError`. Warn to
+`sys.stdout.buffer`. Catch `BrokenPipeError` silently - that is the normal exit
+when a player quits early - and `sys.exit` on `requests.HTTPError`. Warn to
 stderr if stdout is a tty, then proceed. `--dry-run` prints title, server path,
 and URL to stderr without streaming. Get the URL from
 `plex.url(part.key, includeToken=True)`.
@@ -497,7 +526,7 @@ message naming the choices when it is missing.
 ### `rescan [library_id] [-s/--status] [-n/--now]`
 `library_id` is `nargs="?"`; `sys.exit` if it is absent and `--status` was not given.
 
-- `--status` / `-s`: read `plex.activities` — it is a **property, not a method**;
+- `--status` / `-s`: read `plex.activities` - it is a **property, not a method**;
   calling it raises `TypeError: 'list' object is not callable`. Columns `type`,
   `title`, `subtitle`, `progress`, `uuid`; print "No active scan jobs." to stderr when empty.
 - plain: `section.update()` (a file scan, not `refresh()` which only re-fetches metadata)
@@ -505,7 +534,7 @@ message naming the choices when it is missing.
   swallowing errors from already-idle sections, then `section.update()`. Both steps honour `--dry-run`.
 
 ### `build-interleaved <name> <ratingKey...> [--m3u PATH]`
-Round-robin across shows using `_non_special_episodes`.
+Round-robin across shows using `non_special_episodes`.
 
 ### `build-chronological <name> <ratingKey...> [--m3u PATH]`
 Shows and movies, season 0 skipped, globally sorted by resolved air date.
@@ -514,17 +543,30 @@ Missing-date resolution, implemented exactly:
 
 1. Look only within the same season
 2. Collect up to 6 previous and 6 next episodes that have dates, ordered by `episode.index`
-3. Require ≥ 3 known dates (giving ≥ 2 intervals), else fall through to the prompt
+3. Require >= 3 known dates (giving >= 2 intervals), else fall through to the prompt
 4. Compute timedeltas between adjacent sorted dates
-5. Require ≥ 2 intervals, else fall through
+5. Require >= 2 intervals, else fall through
 6. Take `statistics.median` of the interval seconds
-7. Estimate from latest-previous (+median) and/or earliest-next (−median); average the timestamps when both exist
+7. Estimate from latest-previous (+median) and/or earliest-next (-median); average the timestamps when both exist
 8. Otherwise prompt interactively for `YYYY-MM-DD`, offering the last resolved date as the example
 
 ### `build-randomize <user_id> <source> <dest> [--m3u PATH]`
 
+`copy-playlist-all-users` prints the item list **once**, before the loop, and
+passes `preview=False` to `copy_playlist_to` thereafter: the list is identical
+for every user, so repeating it per user buries the report. Each user then
+yields one line - `created`, `replaced`, `skipped`, `failed` - printed as it
+completes so a long run shows progress, or one record per user in a
+machine-readable format.
+
+`finalize_playlist` returns `"created"` or `"replaced"` and `copy_playlist_to`
+returns `(status, final_name, detail)` to make that possible. Because the
+caller now surfaces the skip reason itself, the skip message inside
+`copy_playlist_to` is `LOG.info`, not `LOG.warning` - leaving it as a warning
+duplicates every skip on stderr.
+
 ### `copy-playlist-all-users <source_user_id> <source_playlist> [-o/--overwrite]`
-Resolve the source through `_server_for_user`, then copy to every user from
+Resolve the source through `server_for_user`, then copy to every user from
 `account.users()`, **skipping the source user itself**. A failure for one user
 logs a warning and the loop continues.
 
@@ -540,8 +582,8 @@ meaning skip:
 | `Mix` exists | `Mix admin copy` | `Mix` (replaced) |
 | `Mix` and `Mix admin copy` exist | **skip, warn, touch nothing** | `Mix` (replaced) |
 
-`_copy_playlist_to` takes a `target_label` argument so the skip warning names
-the affected user — essential in the all-users loop, where the run continues.
+`copy_playlist_to` takes a `target_label` argument so the skip warning names
+the affected user - essential in the all-users loop, where the run continues.
 The warning must name both conflicting titles and point at `--overwrite`.
 
 ### `copy-watched <user_a> <user_b> [-1/--one-way] [-l/--library ID] [-t/--title KEY] [--unwatch]`
@@ -553,8 +595,8 @@ two users' visible ratingKeys is considered.
 
 Scope: `--library` restricts to one section, `--title` to one ratingKey
 (skipping the library scan entirely). Watch state lives on leaf items, so map
-section type to leaf libtype — `movie`→`movie`, `show`→`episode`,
-`artist`→`track` — and skip photo libraries, which have no watch state. Use
+section type to leaf libtype - `movie`->`movie`, `show`->`episode`,
+`artist`->`track` - and skip photo libraries, which have no watch state. Use
 `section.all(libtype=...)`, **not** `section.search(...)`, which needs a
 non-empty query and would silently return nothing.
 
@@ -580,8 +622,8 @@ Actions are `markPlayed`, `setProgress`, or `markUnplayed`, computed before
 applying so `--dry-run` can preview them. Print a preview table of
 `ratingKey`, `title`, `action`, `target` and honour `--dry-run`. When nothing
 needs changing, print "Watch state already in sync." to stderr (or `[]` for
-`--json`). Note that plexapi renamed these methods (`markWatched` →
-`markPlayed`, `markUnwatched` → `markUnplayed`), so call through a
+`--json`). Note that plexapi renamed these methods (`markWatched` ->
+`markPlayed`, `markUnwatched` -> `markUnplayed`), so call through a
 `_call_first_method(item, names, *args)` helper that tries both spellings;
 likewise read played state from `isPlayed`, then `isWatched`, then `viewCount`.
 
@@ -601,7 +643,7 @@ Fetch each item, fail fast on an unknown key, preview, honour `--dry-run`, then
 one `playlist.addItems(...)` call.
 
 ### `export-titles <library_id> <output_path> [--sort alpha|date|random] [--album ALBUM]`
-`_apply_sort` modes: `alpha` (episodes by `(grandparentTitle, seasonNumber, index)`,
+`apply_sort` modes: `alpha` (episodes by `(grandparentTitle, seasonNumber, index)`,
 others by title), `date` (`originallyAvailableAt` falling back to `addedAt`,
 undated sorting last via `datetime.datetime.max`), `random`. Output is M3U for
 show/movie libraries and an HTML gallery for photo libraries.
@@ -609,10 +651,10 @@ show/movie libraries and an HTML gallery for photo libraries.
 ### `login [-u USER] [-p PASS] [-c CODE] [-2]`
 Authenticate against plex.tv via `MyPlexAccount` and save the token to
 `token_path` with mode 0600, creating parent directories. Distinguish
-`Unauthorized` (bad credentials or 2FA required — say so) from `BadRequest`.
+`Unauthorized` (bad credentials or 2FA required - say so) from `BadRequest`.
 Verify the saved token by connecting to the configured URL; a failure warns
 rather than aborting, since the token did save. Not in `COMMANDS_REQUIRING_PLEX`
-— there is no token yet — but it still loads the config to learn where to write.
+- there is no token yet - but it still loads the config to learn where to write.
 `--dry-run` authenticates without writing. `--json` emits
 `{"token_path": ..., "verified": ...}` and never the token itself.
 
@@ -620,13 +662,13 @@ Credential precedence, `resolve_credentials(cfg, args)`:
 
 | config | args | result |
 |---|---|---|
-| user + pass | — | ini user, ini pass |
+| user + pass | - | ini user, ini pass |
 | user + pass | `--username` | arg user, **prompt** (ini pass ignored) |
 | user + pass | `--username --password` | arg user, arg pass |
 | user + pass | `--password` | ini user, arg pass |
-| user only | — | ini user, prompt |
-| — | — | prompt both |
-| — | `--username` | arg user, prompt |
+| user only | - | ini user, prompt |
+| - | - | prompt both |
+| - | `--username` | arg user, prompt |
 
 The ini password is only ever used alongside the ini username; pairing a stored
 password with a different username would be a silent credential mismatch.
@@ -649,32 +691,32 @@ Requires no Plex connection.
 
 Its `--help` must print the exact template that would be written. This needs
 `formatter_class=argparse.RawDescriptionHelpFormatter` so the epilog's newlines
-survive — but that same formatter also stops argparse wrapping the description,
+survive - but that same formatter also stops argparse wrapping the description,
 so pre-wrap the description with `textwrap.fill(..., width=78)` and indent the
 epilog template with `textwrap.indent(CONFIG_EXAMPLE, "  ")`.
 
 ## PHOTO LIBRARIES
 
-### `_collect_photos(section, album=None)`
-Walk `section.all()` to get album objects, then `palbum.photos()` on each —
+### `collect_photos(section, album=None)`
+Walk `section.all()` to get album objects, then `palbum.photos()` on each -
 mirroring how show libraries walk shows then episodes. **Do not use
 `section.search(libtype="photo")`**: Plex requires a non-empty query string and
 returns nothing for an empty one, so the library silently appears empty. When
 `album` is given, match `palbum.title` case-insensitively at the album level and
 `sys.exit` if nothing matches, suggesting `list-titles`.
 
-### `_collect_library_items(section, album=None)`
-`show` → walk `_non_special_episodes`; `movie` → `section.all()`; `photo` →
-`_collect_photos`; anything else → `sys.exit` listing the supported types.
+### `collect_library_items(section, album=None)`
+`show` -> walk `non_special_episodes`; `movie` -> `section.all()`; `photo` ->
+`collect_photos`; anything else -> `sys.exit` listing the supported types.
 
-## PHOTO GALLERY — `_write_gallery_html(photos, output_path, library_title)`
+## PHOTO GALLERY - `write_gallery_html(photos, output_path, library_title)`
 
 A single self-contained HTML file using Spotlight.js from jsDelivr for the
-lightbox. **No `plex` parameter and no Plex HTTP URLs anywhere in the output** —
+lightbox. **No `plex` parameter and no Plex HTTP URLs anywhere in the output** -
 every `href` and `src` is a server filesystem path from
-`_photo_file_path(photo)` (`photo.media[0].parts[0].file`, `None` on
+`photo_file_path(photo)` (`photo.media[0].parts[0].file`, `None` on
 `IndexError`/`AttributeError`). A photo with no resolvable path is skipped,
-matching `_write_m3u`.
+matching `write_m3u`.
 
 Split into `_gallery_css()`, `_gallery_photo_anchor(photo)`,
 `_gallery_album_section(album_name, photos)`, and `_group_photos_by_album(photos)`
@@ -683,10 +725,10 @@ to stay under pylint's local-variable limit.
 Photos are grouped by `parentTitle` (falling back to `"Uncategorised"`) and
 albums sorted alphabetically. Design: near-black `#0d0d0d` background, warm
 amber `#a0835c` library title, muted small-caps album headings with counts,
-192×192px cover-fit grid, `scale(1.06)` hover, `loading="lazy"` on every
+192x192px cover-fit grid, `scale(1.06)` hover, `loading="lazy"` on every
 thumbnail, and `prefers-reduced-motion` respected. Spotlight `data-title` is the
 photo title and `data-description` the `originallyAvailableAt` date. For a
-single-album export the gallery title is `"Library — Album"`.
+single-album export the gallery title is `"Library - Album"`.
 
 ## MAKEFILE
 
@@ -733,8 +775,8 @@ that is invisible when developing on Linux:
   console is cp1252, which cannot encode U+2500, so the Unicode-only version
   raises `UnicodeEncodeError` and prints *nothing*. Route cell values through
   a `_printable()` helper that substitutes unencodable characters. Apply it
-  only in the printers — never in `_cell`, which feeds title matching, where
-  mangling `Renée` to `Ren?e` would break comparisons against real Plex data.
+  only in the printers - never in `clean_text`, which feeds title matching, where
+  mangling `Renee` to `Ren?e` would break comparisons against real Plex data.
   JSON output needs no equivalent: `json.dumps` escapes non-ASCII by default.
 - **Permission checks.** `check_file_permissions` must return early when
   `os.name == "nt"`. Windows has no POSIX mode bits; `os.stat` synthesises
@@ -769,17 +811,17 @@ Two compatibility points that are easy to miss:
 - `ADMIN_KEY` is `"@admin"`. A reserved key is needed because `[plex]
   username` is optional, and `@` cannot occur in a Plex username so it cannot
   collide. `admin_token()` resolves in order: configured username, reserved
-  key, then a store holding exactly one entry — which is what `login` with no
+  key, then a store holding exactly one entry - which is what `login` with no
   configured username leaves behind.
 
 The config file gains a section per user, named for the numeric user ID, each
 holding `username` and `password`.
 
-`accounts._server_for_user` tries three sources in order and returns the first
+`accounts.server_for_user` tries three sources in order and returns the first
 that connects, because a server refuses an admin-issued token for a user it
 has shared nothing with:
 
-1. `user.get_token(machineIdentifier)` — the admin-issued, server-scoped token
+1. `user.get_token(machineIdentifier)` - the admin-issued, server-scoped token
 2. a token already in the store, under any of the candidate usernames
    (configured, then `user.username`, `user.email`, `user.title`)
 3. `MyPlexAccount(username, password)` from the `[<user_id>]` section, whose
@@ -803,7 +845,7 @@ by the server admin: `user.get_token()` succeeds but the resulting
 server's HTML error page in its message. Untreated this surfaces as a raw
 traceback ending in a wall of HTML.
 
-`accounts._server_for_user` must guard both `get_token()` and the `PlexServer`
+`accounts.server_for_user` must guard both `get_token()` and the `PlexServer`
 construction, and a token that comes back empty, raising `UserAccessError`
 with a plain-language explanation: the token was rejected, admin rights do not
 override per-user scoping, and the fix is to share a library or pass 0. The
@@ -831,10 +873,10 @@ found, unsupported library type, album not found.
 Provide completions for **bash, zsh, and fish** in `completions/`, mirrored
 into `src/plexdo/data/` as package data: `plex.do.bash`, `_plex.do` (zsh
 `#compdef` convention), and `plex.do.fish`. All three share the same cache
-strategy and cover the same values, and all three depend only on `python3` —
+strategy and cover the same values, and all three depend only on `python3` -
 no `bash-completion` package, no external helpers.
 
-### bash — `completions/plex.do.bash`
+### bash - `completions/plex.do.bash`
 
 Must work **without** the `bash-completion` package: initialise from
 `COMP_WORDS` / `COMP_CWORD` directly rather than `_init_completion`, and use
@@ -844,13 +886,13 @@ a `command not found` on every Tab press.
 Caches live in `~/.cache/plex.do` with a 900-second TTL, checked via `stat`
 portable across Linux (`-c %Y`) and macOS (`-f %m`). When a cache is stale or
 missing, `_plexdo_bg_refresh` runs the relevant `plex.do` list command with
-`>/dev/null 2>&1 &` and `disown`, so completion never blocks — stale results are
+`>/dev/null 2>&1 &` and `disown`, so completion never blocks - stale results are
 shown now and the next Tab sees fresh ones. `_plexdo_json_candidates cache field`
 reads a cache with inline Python.
 
 Helpers: `_plexdo_complete_user_id` (`0` plus cached IDs),
 `_plexdo_complete_library_id`, `_plexdo_complete_rating_key` (merged from every
-`titles.*.json`, chaining `list-libraries` → per-library `list-titles` when
+`titles.*.json`, chaining `list-libraries` -> per-library `list-titles` when
 nothing is cached), `_plexdo_complete_playlist(uid)`,
 `_plexdo_complete_playlist_id_or_name(uid)` (both ratingKeys and titles, for
 `list-playlist`), `_plexdo_complete_album(library_id)` (unique album prefixes
@@ -860,24 +902,24 @@ split from `"Album - Photo Title"`), plus `_plexdo_find_cmd`,
 
 | command | pos 0 | pos 1 | pos 2 | pos 3 | flags |
 |---|---|---|---|---|---|
-| `list-titles` | library_id | — | — | — | `--album` → albums |
-| `search` | user_id | free | — | — | `--media-type`, `--library-id` |
-| `list-playlists` | user_id | — | — | — | — |
-| `list-playlist` | user_id | playlist-id-or-name | — | — | `--m3u` → file |
-| `list-show` | rating_key | — | — | — | `--m3u` → file |
-| `show-metadata` | rating_key | — | — | — | — |
-| `read` | library_id | rating_key | — | — | — |
-| `rescan` | library_id | — | — | — | `-s/--status`, `-n/--now` |
-| `build-interleaved` | free | rating_key… | — | — | `--m3u` → file |
-| `build-chronological` | free | rating_key… | — | — | `--m3u` → file |
-| `build-randomize` | user_id | playlist | free | — | `--m3u` → file |
-| `copy-playlist-all-users` | user_id | playlist | — | — | `-o/--overwrite` |
+| `list-titles` | library_id | - | - | - | `--album` -> albums |
+| `search` | user_id | free | - | - | `--media-type`, `--library-id` |
+| `list-playlists` | user_id | - | - | - | - |
+| `list-playlist` | user_id | playlist-id-or-name | - | - | `--m3u` -> file |
+| `list-show` | rating_key | - | - | - | `--m3u` -> file |
+| `show-metadata` | rating_key | - | - | - | - |
+| `read` | library_id | rating_key | - | - | - |
+| `rescan` | library_id | - | - | - | `-s/--status`, `-n/--now` |
+| `build-interleaved` | free | rating_key... | - | - | `--m3u` -> file |
+| `build-chronological` | free | rating_key... | - | - | `--m3u` -> file |
+| `build-randomize` | user_id | playlist | free | - | `--m3u` -> file |
+| `copy-playlist-all-users` | user_id | playlist | - | - | `-o/--overwrite` |
 | `copy-playlist-to-user` | user_id | playlist | user_id | playlist | `-o/--overwrite` |
-| `remove-playlist` | user_id | playlist | — | — | — |
-| `export-playlist` | user_id | playlist | file path | — | — |
-| `append-playlist` | user_id | playlist | rating_key… | — | — |
-| `export-titles` | library_id | file path | — | — | `--sort`, `--album` → albums |
-| `copy-watched` | user_id | user_id | — | — | `-1`, `-l` → libraries, `-t` → ratingKeys, `--unwatch` |
+| `remove-playlist` | user_id | playlist | - | - | - |
+| `export-playlist` | user_id | playlist | file path | - | - |
+| `append-playlist` | user_id | playlist | rating_key... | - | - |
+| `export-titles` | library_id | file path | - | - | `--sort`, `--album` -> albums |
+| `copy-watched` | user_id | user_id | - | - | `-1`, `-l` -> libraries, `-t` -> ratingKeys, `--unwatch` |
 
 Values that can contain spaces (library titles, user titles, playlist names)
 must reach `COMPREPLY` as whole lines via the read-loop helper, **not** through
@@ -885,7 +927,7 @@ must reach `COMPREPLY` as whole lines via the read-loop helper, **not** through
 
 Numeric IDs must be shown with their titles: `7  (Alice)`, `101  (Breaking Bad
 - Pilot)`. bash cannot attach descriptions to completions, but it only
-*inserts* a candidate once a single one remains — with several it merely lists
+*inserts* a candidate once a single one remains - with several it merely lists
 them and inserts their common prefix. `_plexdo_compreply_pairs` exploits that:
 it lists the annotated forms while a choice remains and substitutes the bare
 value the moment the choice collapses to one. Every annotated form begins with
@@ -893,7 +935,7 @@ its own value, so the common prefix bash inserts stays a valid prefix.
 
 Distinguish what is *insertable* from what is merely *shown*: user and library
 titles are insertable, because those arguments accept a title, but an item
-title is not — `fetchItem` needs a numeric ratingKey, so a title there is
+title is not - `fetchItem` needs a numeric ratingKey, so a title there is
 display only.
 
 `_plexdo_complete_rating_key` merges keys from every `titles.*.json`, so it
@@ -901,7 +943,7 @@ must gather them all and render once; filling `COMPREPLY` inside the loop lets
 a later library discard an earlier one's matches. Clear `COMPREPLY` on entry,
 since bash does not reset it between invocations.
 
-### zsh — `completions/_plex.do`
+### zsh - `completions/_plex.do`
 
 Start with `#compdef plex.do plexdo`. Use `_arguments -C` with
 `'1:command:_plexdo_commands'` and `'*::command argument:->subcmd'`, then a
@@ -910,7 +952,7 @@ that `words[1]` is the subcommand**, which the positional helper must assume.
 Offer descriptions via `_describe`, and sanitise `:` out of description text
 since `_describe` splits `value:description` on it.
 
-### fish — `completions/plex.do.fish`
+### fish - `completions/plex.do.fish`
 
 Use `complete -c plex.do -f` plus `-c plexdo` for the alias, gating each rule
 on `__fish_seen_subcommand_from`. Fish has no positional-index primitive, so
@@ -919,7 +961,7 @@ write `__plexdo_positionals` / `__plexdo_at` / `__plexdo_nth` helpers that walk
 take one (`--m3u`, `--album`, `--sort`, `--media-type`, `--library-id`, `-l`,
 `-t`, `-u`, `-p`, `-c`). Global flags are registered without a subcommand
 condition so they complete in either position. Emit `value\tdescription` pairs.
-| `login` | — | — | — | — | `-u`, `-p`, `-c`, `-2` |
+| `login` | - | - | - | - | `-u`, `-p`, `-c`, `-2` |
 
 Register with `complete -F _plexdo_complete plex.do` and the same for `plex_do`.
 
@@ -934,21 +976,39 @@ The `.TH` line carries the version, which makes three places that can drift
 apart. `make check-version` compares `__init__.py`, `pyproject.toml`, and the
 man page and fails on any mismatch; it runs first in `make check`.
 
-Escaping to watch: a literal backslash is `\e`, so a UNC path in an example
-needs `\e\eNAS\emedia` to render as `\\NAS\media`.
+Two escapes to watch, both of which corrupt copy-pasteable examples if missed:
+
+- A literal backslash is `\e`, so a UNC path in an example needs
+  `\e\eNAS\emedia` to render as `\\NAS\media`.
+- A literal apostrophe is `\(aq`, and a literal backtick is `\(ga`. groff
+  remaps a bare `'` to a typographic right quote (U+2019) and a bare backtick
+  to a left quote on many configurations - visible in PostScript output as the
+  glyph `quoteright` rather than `quotesingle`. That silently breaks any
+  shell-quoted example a reader tries to copy. Double quotes are *not*
+  remapped and need no escape.
 
 ## DELIVERABLES
 
 1. The `plexdo` package under `src/`, laid out as above
-2. `pyproject.toml` — PEP 621 metadata, both console scripts, package data, pylint config
-3. `README.md` — install, configuration, every command group with examples, completion setup, layout
-4. `man/plex.do.1` — the manual page
-4. `LICENSE` — the full GNU GPL v3 text, `MANIFEST.in`, `requirements.txt`, `.gitignore`
-5. `Makefile` — see below
+2. `pyproject.toml` - PEP 621 metadata, both console scripts, package data, pylint config
+3. `README.md` - install, configuration, every command group with examples, completion setup, layout
+4. `man/plex.do.1` - the manual page
+4. `LICENSE` - the full GNU GPL v3 text, `MANIFEST.in`, `requirements.txt`, `.gitignore`
+5. `Makefile` - see below
 6. `completions/plex.do.bash`, mirrored into `src/plexdo/data/`
-7. `AI.prompt.md` — this file, at the top level of the project, containing the
+7. `AI.prompt.md` - this file, at the top level of the project, containing the
    full prompt that regenerates the project including this requirement itself
 
-Verification: `pylint src/plexdo` scores 10.00/10, `python -m build` succeeds,
+Dead code and orphaned comments are checked with `vulture src/plexdo
+--min-confidence 0` alongside pylint; both must come back empty. When a symbol
+is renamed or removed, the sweep must include this file - a spec that still
+describes the old API will regenerate it.
+
+Verification: `make check` runs `check-version`, `smoke`, `pylint`, `build`,
+and `twine check` in that order. The `smoke` target imports the package,
+builds the full parser, and asserts every module in `MODULES` still exposes
+`register()` and `COMMANDS` - pylint scores a module 10.00/10 even when an
+edit has silently truncated that tail, which breaks every command in it.
+`pylint src/plexdo` scores 10.00/10, `python -m build` succeeds,
 `twine check dist/*` passes, and installing the wheel into a clean virtualenv
 gives a working `plex.do` console script.

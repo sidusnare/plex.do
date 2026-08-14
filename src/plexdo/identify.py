@@ -10,7 +10,7 @@ from typing import Any, List, Tuple
 import re
 import sys
 
-from plexdo.console import _cell
+from plexdo.console import clean_text
 from plexdo.constants import LOG
 
 
@@ -39,7 +39,7 @@ def resolve_identifier(
     the ID, with a warning naming the entry that was not selected. Two entries
     sharing a title is unresolvable and aborts.
     """
-    text = _cell(value)
+    text = clean_text(value)
     matches = _titles_matching(roster, text)
 
     if len(matches) > 1:

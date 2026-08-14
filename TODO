@@ -1,0 +1,4 @@
+
+validate airdates.py works, I'm not sure it does, I need to create a situation that it should be able to solve and test it
+
+Do we really need normalize_rating_key() ? it's a wrapper for int() why are we doing that?

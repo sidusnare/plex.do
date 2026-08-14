@@ -14,7 +14,7 @@ Every command module exposes three names:
     The subset of those names needing a connected server. Commands outside it
     (``login``, ``write-config-example``) run before a token necessarily exists.
 
-Adding a command means adding a module here — ``cli`` needs no edit.
+Adding a command means adding a module here - ``cli`` needs no edit.
 """
 
 import argparse

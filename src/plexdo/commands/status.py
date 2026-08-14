@@ -8,13 +8,12 @@ import sys
 
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _account_type
-from plexdo.commands.rescan import _activity_rows
-from plexdo.console import _cell, output, output_format, print_metadata, print_table
+from plexdo.accounts import account_type
+from plexdo.console import clean_text, output, output_format, print_metadata, print_table
 from plexdo.constants import LOG
-from plexdo.convert import _format_duration, normalize_rating_key, parse_date
+from plexdo.convert import format_duration, parse_date
 from plexdo.formats import render
-from plexdo.titles import _display_title
+from plexdo.titles import display_title
 
 
 # Activity types Plex uses for library scanning, as opposed to the other
@@ -26,21 +25,21 @@ def _server_record(plex: PlexServer) -> Dict[str, Any]:
     """Identity and version details for the server itself."""
     updated = parse_date(getattr(plex, "updatedAt", None))
     return {
-        "name": _cell(getattr(plex, "friendlyName", "") or ""),
-        "version": _cell(getattr(plex, "version", "") or ""),
-        "machineIdentifier": _cell(getattr(plex, "machineIdentifier", "") or ""),
-        "platform": _cell(getattr(plex, "platform", "") or ""),
-        "platformVersion": _cell(getattr(plex, "platformVersion", "") or ""),
+        "name": clean_text(getattr(plex, "friendlyName", "") or ""),
+        "version": clean_text(getattr(plex, "version", "") or ""),
+        "machineIdentifier": clean_text(getattr(plex, "machineIdentifier", "") or ""),
+        "platform": clean_text(getattr(plex, "platform", "") or ""),
+        "platformVersion": clean_text(getattr(plex, "platformVersion", "") or ""),
         "updatedAt": updated.isoformat(sep=" ") if updated else "",
-        "myPlexUsername": _cell(getattr(plex, "myPlexUsername", "") or ""),
+        "myPlexUsername": clean_text(getattr(plex, "myPlexUsername", "") or ""),
         "myPlexSubscription": bool(getattr(plex, "myPlexSubscription", False)),
     }
 
 
 def _format_offset(milliseconds: Any, duration: Any) -> str:
     """Render a playback position as elapsed / total."""
-    elapsed = _format_duration(milliseconds) or "-"
-    total = _format_duration(duration) or "-"
+    elapsed = format_duration(milliseconds) or "-"
+    total = format_duration(duration) or "-"
     return f"{elapsed} / {total}"
 
 
@@ -52,12 +51,12 @@ def _session_rows(plex: PlexServer) -> List[Dict[str, Any]]:
         player = players[0] if players else None
         usernames = getattr(item, "usernames", []) or []
         rows.append({
-            "user": _cell(usernames[0] if usernames else ""),
-            "title": _display_title(item),
-            "state": _cell(getattr(player, "state", "") or ""),
-            "player": _cell(getattr(player, "title", "") or ""),
-            "platform": _cell(getattr(player, "platform", "") or ""),
-            "address": _cell(getattr(player, "address", "") or ""),
+            "user": clean_text(usernames[0] if usernames else ""),
+            "title": display_title(item),
+            "state": clean_text(getattr(player, "state", "") or ""),
+            "player": clean_text(getattr(player, "title", "") or ""),
+            "platform": clean_text(getattr(player, "platform", "") or ""),
+            "address": clean_text(getattr(player, "address", "") or ""),
             "progress": _format_offset(
                 getattr(item, "viewOffset", 0), getattr(item, "duration", 0)
             ),
@@ -69,11 +68,11 @@ def _user_rows(plex: PlexServer) -> List[Dict[str, Any]]:
     """Shared and managed users visible to the admin token."""
     return [
         {
-            "id": normalize_rating_key(user.id),
-            "type": _account_type(user),
-            "title": _cell(user.title or ""),
-            "username": _cell(getattr(user, "username", "") or ""),
-            "email": _cell(getattr(user, "email", "") or ""),
+            "id": int(user.id),
+            "type": account_type(user),
+            "title": clean_text(user.title or ""),
+            "username": clean_text(getattr(user, "username", "") or ""),
+            "email": clean_text(getattr(user, "email", "") or ""),
         }
         for user in plex.myPlexAccount().users()
     ]
@@ -83,10 +82,10 @@ def _system_account_rows(plex: PlexServer) -> List[Dict[str, Any]]:
     """Accounts the server itself knows about, which is not the same list."""
     return [
         {
-            "id": normalize_rating_key(account.id),
-            "name": _cell(account.name or ""),
-            "audioLanguage": _cell(getattr(account, "defaultAudioLanguage", "") or ""),
-            "subtitleLanguage": _cell(
+            "id": int(account.id),
+            "name": clean_text(account.name or ""),
+            "audioLanguage": clean_text(getattr(account, "defaultAudioLanguage", "") or ""),
+            "subtitleLanguage": clean_text(
                 getattr(account, "defaultSubtitleLanguage", "") or ""
             ),
         }
@@ -106,10 +105,10 @@ def _connection_rows(plex: PlexServer) -> List[Dict[str, Any]]:
         return []
     return [
         {
-            "uri": _cell(conn.uri or ""),
-            "address": _cell(conn.address or ""),
+            "uri": clean_text(conn.uri or ""),
+            "address": clean_text(conn.address or ""),
             "port": conn.port,
-            "protocol": _cell(conn.protocol or ""),
+            "protocol": clean_text(conn.protocol or ""),
             "local": bool(conn.local),
             "relay": bool(conn.relay),
             "ipv6": bool(getattr(conn, "ipv6", False)),
@@ -124,13 +123,13 @@ def _is_scan(activity: Any) -> bool:
     return any(marker in kind for marker in _SCAN_MARKERS)
 
 
-def _activity_rows(plex: PlexServer, scans: bool) -> List[Dict[str, Any]]:
+def _split_activity_rows(plex: PlexServer, scans: bool) -> List[Dict[str, Any]]:
     """In-progress activities, split into scans and everything else."""
     return [
         {
-            "type": _cell(getattr(act, "type", "") or ""),
-            "title": _cell(getattr(act, "title", "") or ""),
-            "subtitle": _cell(getattr(act, "subtitle", "") or ""),
+            "type": clean_text(getattr(act, "type", "") or ""),
+            "title": clean_text(getattr(act, "title", "") or ""),
+            "subtitle": clean_text(getattr(act, "subtitle", "") or ""),
             "progress": getattr(act, "progress", ""),
             "cancellable": bool(getattr(act, "cancellable", False)),
         }
@@ -148,8 +147,8 @@ def _butler_rows(plex: PlexServer) -> List[Dict[str, Any]]:
         return []
     return [
         {
-            "name": _cell(task.name or ""),
-            "title": _cell(getattr(task, "title", "") or ""),
+            "name": clean_text(task.name or ""),
+            "title": clean_text(getattr(task, "title", "") or ""),
             "enabled": bool(getattr(task, "enabled", False)),
             "interval": getattr(task, "interval", ""),
         }
@@ -164,8 +163,8 @@ _SECTIONS: Dict[str, Any] = {
     "users": ("Shared users", _user_rows),
     "accounts": ("System accounts", _system_account_rows),
     "connections": ("Reachable addresses", _connection_rows),
-    "scans": ("Library scans in progress", lambda p: _activity_rows(p, True)),
-    "activities": ("Other background activity", lambda p: _activity_rows(p, False)),
+    "scans": ("Library scans in progress", lambda p: _split_activity_rows(p, True)),
+    "activities": ("Other background activity", lambda p: _split_activity_rows(p, False)),
     "tasks": ("Scheduled background tasks", _butler_rows),
 }
 

@@ -44,6 +44,7 @@ FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plex.do.fish
 .PHONY: help install uninstall reinstall develop install-completion \
         uninstall-completion install-completion-bash install-completion-zsh \
         install-completion-fish install-man uninstall-man check-version \
+        smoke check-assets \
         build check lint dist-check clean distclean
 
 # ---------------------------------------------------------------------------
@@ -161,7 +162,40 @@ check-version:
 		echo "version mismatch: __init__=$$v pyproject=$$p man=$$m" >&2; exit 1; \
 	fi
 
-check: check-version lint build dist-check
+# Import the package and build the full parser. pylint cannot catch a module
+# that is valid Python but has lost its register()/COMMANDS tail, which is
+# exactly the kind of edit that silently breaks every command.
+smoke:
+	@PYTHONPATH=src $(PYTHON) -c "\
+from plexdo.cli import build_parser; \
+from plexdo.commands import build_registry, MODULES; \
+build_parser(); \
+h, n = build_registry(); \
+missing = [m.__name__ for m in MODULES if not hasattr(m, 'register') or not getattr(m, 'COMMANDS', None)]; \
+assert not missing, 'modules missing register()/COMMANDS: %s' % missing; \
+assert len(h) >= 23, 'only %d commands registered' % len(h); \
+print('smoke: %d commands across %d modules' % (len(h), len(MODULES)))"
+
+# The completions and man page are mirrored into the package as data files;
+# editing the source copy and forgetting the mirror ships a stale asset in the
+# wheel. Source is also required to be plain ASCII.
+check-assets:
+	@fail=0; \
+	for f in plex.do.bash _plex.do plex.do.fish; do \
+		cmp -s "completions/$$f" "src/$(PACKAGE)/data/$$f" || { \
+			echo "stale mirror: src/$(PACKAGE)/data/$$f differs from completions/$$f" >&2; fail=1; }; \
+	done; \
+	cmp -s "$(MAN_PAGE)" "src/$(PACKAGE)/data/plex.do.1" || { \
+		echo "stale mirror: src/$(PACKAGE)/data/plex.do.1 differs from $(MAN_PAGE)" >&2; fail=1; }; \
+	for f in $$(find src completions man -type f ! -path "*egg-info*" ! -name "*.pyc") \
+		         Makefile pyproject.toml; do \
+		if LC_ALL=C grep -qP "[^\x00-\x7F]" "$$f" 2>/dev/null; then \
+			echo "non-ASCII characters in $$f" >&2; fail=1; \
+		fi; \
+	done; \
+	[ $$fail -eq 0 ] && echo "assets: mirrors in sync, source is plain ASCII"
+
+check: check-version check-assets smoke lint build dist-check
 	@echo ""
 	@echo "All checks passed."
 

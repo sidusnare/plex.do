@@ -9,12 +9,12 @@ import sys
 
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _server_for_user
+from plexdo.accounts import server_for_user
 from plexdo.console import output, output_format
 from plexdo.constants import LOG
-from plexdo.convert import normalize_rating_key, parse_date
+from plexdo.convert import parse_date
 from plexdo.sections import resolve_sections
-from plexdo.titles import _display_title, fetch_item
+from plexdo.titles import display_title, fetch_item
 
 
 # Library type -> the leaf libtype that actually carries watch state.
@@ -161,7 +161,7 @@ def _collect_watch_states(
 
     if rating_key is not None:
         item = fetch_item(user_plex, rating_key)
-        states[normalize_rating_key(item.ratingKey)] = _watch_state(item)
+        states[int(item.ratingKey)] = _watch_state(item)
         return states
 
     for section in _watchable_sections(user_plex, library_id):
@@ -169,7 +169,7 @@ def _collect_watch_states(
         # section.all(libtype=...) hits the plain listing endpoint; the search
         # endpoint needs a non-empty query and would silently return nothing.
         for item in section.all(libtype=libtype):
-            states[normalize_rating_key(item.ratingKey)] = _watch_state(item)
+            states[int(item.ratingKey)] = _watch_state(item)
     return states
 
 
@@ -191,7 +191,7 @@ def _build_sync_plan(
             continue
         plan.append(PlannedChange(
             rating_key=rating_key,
-            title=_display_title(loser.item),
+            title=display_title(loser.item),
             action=_planned_action(winner),
             target="a" if loser is first else "b",
             winner=winner,
@@ -222,10 +222,10 @@ def cmd_copy_watched(plex: PlexServer, args: argparse.Namespace) -> None:
         sys.exit("The two user IDs must differ.")
 
     states_a = _collect_watch_states(
-        _server_for_user(plex, args.user_a), args.library_id, args.rating_key
+        server_for_user(plex, args.user_a), args.library_id, args.rating_key
     )
     states_b = _collect_watch_states(
-        _server_for_user(plex, args.user_b), args.library_id, args.rating_key
+        server_for_user(plex, args.user_b), args.library_id, args.rating_key
     )
     LOG.info(
         "Collected %d item(s) for user %d and %d for user %d",

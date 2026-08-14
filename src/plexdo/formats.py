@@ -20,7 +20,6 @@ Payload = Union[Record, List[Record], Any]
 
 # "table" is handled by console.print_table / print_metadata, not here.
 OUTPUT_FORMATS = ("table", "json", "yaml", "csv", "clixml")
-MACHINE_FORMATS = ("json", "yaml", "csv", "clixml")
 
 
 def _as_records(data: Payload) -> List[Record]:

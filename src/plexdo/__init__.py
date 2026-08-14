@@ -16,11 +16,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""plex.do — a command-line interface for Plex Media Server.
+"""plex.do - a command-line interface for Plex Media Server.
 
 The public entry point is :func:`plexdo.cli.main`, exposed by the ``plex.do``
 console script.
 """
 
-__version__ = "1.0.8"
+__version__ = "1.0.14"
 __all__ = ["__version__"]

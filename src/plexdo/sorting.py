@@ -7,10 +7,10 @@ import datetime
 
 from plexapi.video import Episode
 
-from plexdo.console import _cell
+from plexdo.console import clean_text
 from plexdo.constants import MediaItem
 from plexdo.convert import parse_date
-from plexdo.titles import _shuffle_list
+from plexdo.titles import shuffle_list
 
 
 _DATE_SENTINEL = datetime.datetime.max  # sort undated items last
@@ -24,11 +24,11 @@ def _alpha_sort_key(item: MediaItem) -> Tuple[str, int, int]:
     """
     if isinstance(item, Episode):
         return (
-            _cell(item.grandparentTitle or ""),
+            clean_text(item.grandparentTitle or ""),
             item.seasonNumber or 0,
             item.index or 0,
         )
-    return (_cell(item.title or ""), 0, 0)
+    return (clean_text(item.title or ""), 0, 0)
 
 
 def _date_sort_key(item: MediaItem) -> datetime.datetime:
@@ -41,10 +41,10 @@ def _date_sort_key(item: MediaItem) -> datetime.datetime:
     return parse_date(raw) or _DATE_SENTINEL
 
 
-def _apply_sort(items: List[MediaItem], sort_mode: str) -> List[MediaItem]:
+def apply_sort(items: List[MediaItem], sort_mode: str) -> List[MediaItem]:
     """Return a new list sorted according to sort_mode."""
     if sort_mode == "date":
         return sorted(items, key=_date_sort_key)
     if sort_mode == "random":
-        return _shuffle_list(items)
+        return shuffle_list(items)
     return sorted(items, key=_alpha_sort_key)  # default: "alpha"

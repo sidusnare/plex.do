@@ -7,10 +7,9 @@ import argparse
 
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _account_type
-from plexdo.cache import _write_cache
+from plexdo.accounts import account_type
+from plexdo.cache import write_cache
 from plexdo.console import output
-from plexdo.convert import normalize_rating_key
 
 
 def cmd_list_users(plex: PlexServer, args: argparse.Namespace) -> None:
@@ -18,13 +17,13 @@ def cmd_list_users(plex: PlexServer, args: argparse.Namespace) -> None:
     account = plex.myPlexAccount()
     rows = [
         {
-            "id": normalize_rating_key(u.id),
-            "type": _account_type(u),
+            "id": int(u.id),
+            "type": account_type(u),
             "title": u.title,
         }
         for u in account.users()
     ]
-    _write_cache("users", rows)
+    write_cache("users", rows)
     output(rows, args)
 
 
