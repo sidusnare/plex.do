@@ -348,12 +348,54 @@ into `CACHE_DIR`, silently swallowing `OSError`. Called as a side effect, before
 `titles.<id>.json`; `list-users` → `users.json`; `list-playlists <uid>` →
 `playlists.<uid>.json`.
 
+## PLAYLISTS: LOOKUP AND CREATION
+
+Every argument naming an **existing** playlist accepts a title or a ratingKey,
+resolved through `_resolve_playlist`; no command may call
+`plex.playlist(name)` directly. That covers `list-playlist`,
+`export-playlist`, `remove-playlist`, `append-playlist`, the source of
+`build-randomize`, and the source of both copy commands.
+
+Every command that **creates** a playlist takes `-o/--overwrite`:
+`build-interleaved`, `build-chronological`, `build-randomize`, and the two
+copy commands. `finalize_playlist` enforces it centrally — a name collision
+without the flag exits reporting the existing ratingKey and making clear
+nothing was created or removed, and the check happens **before** the preview
+so a doomed run fails immediately rather than after a screen of output.
+
+Because `finalize_playlist` performs the replacement, `_copy_playlist_to` must
+*not* delete as well: `_resolve_dest_name` only reports a replacement when
+`--overwrite` was given, so both would be acting on the same condition.
+
 ## PLAYLIST BUILDING MODEL
 
 Every build command must (1) fully construct the item list in memory,
 (2) validate it is non-empty, (3) print a numbered preview via `_display_title`,
 (4) make exactly one `plex.createPlaylist(name, items=items)` call.
 `finalize_playlist(plex, name, items, args)` enforces this and honours `--dry-run`.
+
+## EXPORT PATH REWRITING
+
+`paths.py` provides `make_path_mapper(plex, prefix)`, returning a
+`Callable[[str], str]`. Without a prefix it returns `identity`, so the default
+export keeps the server's paths and costs no extra API call; the library roots
+are only fetched when a prefix is actually given.
+
+The prefix replaces the **library root**, not an arbitrary leading substring,
+so `library_roots()` collects `section.locations` from every section and sorts
+them longest-first — otherwise a library nested inside another's tree matches
+the wrong root. Rejoin using the prefix's own separator style, so a Windows
+prefix yields backslashes throughout. A path under no known root is appended
+whole and warned about exactly once, since spamming per file would drown the
+export.
+
+`_write_m3u` and `_write_gallery_html` take the mapper as an argument
+defaulting to `identity`; they must not reach for `plex` themselves.
+
+All seven export commands take `-p/--prefix`: `export-playlist`,
+`export-titles`, and the five with `--m3u`. Register it through
+`paths.add_prefix_argument(parser)` — repeating the help text inline in three
+command modules trips pylint's `duplicate-code`.
 
 ## M3U EXPORT — `_write_m3u(items, path)`
 
@@ -881,11 +923,26 @@ condition so they complete in either position. Emit `value\tdescription` pairs.
 
 Register with `complete -F _plexdo_complete plex.do` and the same for `plex_do`.
 
+## MAN PAGE
+
+`man/plex.do.1`, in roff, mirrored into `src/plexdo/data/` as package data and
+installed by `make install` to `$(MAN_DIR)/man1`. It must document every
+command, the configuration and token formats, exit status, environment, files,
+and worked examples, and must pass `groff -man -Tutf8 -ww -z` with no warnings.
+
+The `.TH` line carries the version, which makes three places that can drift
+apart. `make check-version` compares `__init__.py`, `pyproject.toml`, and the
+man page and fails on any mismatch; it runs first in `make check`.
+
+Escaping to watch: a literal backslash is `\e`, so a UNC path in an example
+needs `\e\eNAS\emedia` to render as `\\NAS\media`.
+
 ## DELIVERABLES
 
 1. The `plexdo` package under `src/`, laid out as above
 2. `pyproject.toml` — PEP 621 metadata, both console scripts, package data, pylint config
 3. `README.md` — install, configuration, every command group with examples, completion setup, layout
+4. `man/plex.do.1` — the manual page
 4. `LICENSE` — the full GNU GPL v3 text, `MANIFEST.in`, `requirements.txt`, `.gitignore`
 5. `Makefile` — see below
 6. `completions/plex.do.bash`, mirrored into `src/plexdo/data/`

@@ -6,11 +6,20 @@ from pathlib import Path
 from typing import List
 
 from plexdo.constants import LOG, MediaItem
+from plexdo.paths import PathMapper, identity
 from plexdo.titles import _display_title
 
 
-def _write_m3u(sorted_items: List[MediaItem], path: str) -> None:
-    """Write an M3U playlist using Plex server filesystem paths."""
+def _write_m3u(
+    sorted_items: List[MediaItem],
+    path: str,
+    map_path: PathMapper = identity,
+) -> None:
+    """Write an M3U playlist from the server's filesystem paths.
+
+    *map_path* rewrites each path; it is the identity unless --prefix asked
+    for something else.
+    """
     lines: List[str] = ["#EXTM3U"]
     for item in sorted_items:
         duration_ms = getattr(item, "duration", None)
@@ -21,7 +30,7 @@ def _write_m3u(sorted_items: List[MediaItem], path: str) -> None:
                 if not file_path:
                     continue
                 lines.append(f"#EXTINF:{seconds},{_display_title(item)}")
-                lines.append(file_path)
+                lines.append(map_path(file_path))
 
     output_path = Path(path).expanduser()
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

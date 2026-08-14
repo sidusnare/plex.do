@@ -10,7 +10,7 @@ from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 
-from plexdo.console import output
+from plexdo.console import _cell, output
 from plexdo.constants import LOG, MediaItem
 from plexdo.convert import normalize_rating_key
 from plexdo.titles import _display_title
@@ -39,15 +39,37 @@ def _resolve_playlist(user_plex: PlexServer, identifier: str) -> Playlist:
         sys.exit(f"Playlist not found: {identifier!r}")
 
 
+def existing_playlist(plex: PlexServer, name: str) -> Optional[Playlist]:
+    """Return a playlist with exactly this title, or None."""
+    for playlist in plex.playlists():
+        if _cell(playlist.title) == _cell(name):
+            return playlist
+    return None
+
+
 def finalize_playlist(
     plex: PlexServer,
     name: str,
     items: List[MediaItem],
     args: argparse.Namespace,
 ) -> None:
-    """Validate, preview, and (unless --dry-run) create the playlist via one API call."""
+    """Validate, preview, and (unless --dry-run) create the playlist.
+
+    Refuses to clobber an existing playlist of the same name unless
+    --overwrite is given, and checks that before printing the preview so a
+    doomed run fails immediately rather than after a screen of output.
+    """
     if not items:
-        sys.exit("Playlist is empty — aborting.")
+        sys.exit("Playlist is empty - aborting.")
+
+    duplicate = existing_playlist(plex, name)
+    if duplicate is not None and not getattr(args, "overwrite", False):
+        sys.exit(
+            f"A playlist named {name!r} already exists (ratingKey "
+            f"{normalize_rating_key(duplicate.ratingKey)}). Nothing has been "
+            "created or removed.\n"
+            "Re-run with --overwrite to replace it, or choose another name."
+        )
 
     LOG.info("Playlist '%s': %d items", name, len(items))
 
@@ -62,8 +84,14 @@ def finalize_playlist(
     output(preview_rows, args)
 
     if args.dry_run:
+        if duplicate is not None:
+            LOG.info("--dry-run: would replace the existing '%s'", name)
         LOG.info("--dry-run: skipping playlist creation.")
         return
+
+    if duplicate is not None:
+        duplicate.delete()
+        LOG.info("Removed the existing playlist '%s'", name)
 
     plex.createPlaylist(name, items=items)
     LOG.info("Playlist '%s' created with %d items.", name, len(items))
@@ -114,15 +142,10 @@ def _copy_playlist_to(
         )
         return
 
-    final_name, overwrite = resolved
-    LOG.info("Copying to '%s' (overwrite=%s)", final_name, overwrite)
+    final_name, replacing = resolved
+    LOG.info("Copying to '%s' (replacing=%s)", final_name, replacing)
 
-    if overwrite and not args.dry_run:
-        try:
-            existing_pl: Playlist = user_plex.playlist(final_name)
-            existing_pl.delete()
-            LOG.debug("Deleted existing playlist '%s'", final_name)
-        except NotFound:
-            pass
-
+    # No delete here: _resolve_dest_name only reports replacing=True when
+    # --overwrite was given, and finalize_playlist performs the replacement
+    # itself. Doing it in both places would be the same logic twice.
     finalize_playlist(user_plex, final_name, src_items, args)

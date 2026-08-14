@@ -16,6 +16,7 @@ PYTHON        ?= python3
 PIP           ?= $(PYTHON) -m pip
 PIP_FLAGS     ?=
 PACKAGE       := plexdo
+MAN_PAGE        := man/plex.do.1
 BASH_COMPLETION := completions/plex.do.bash
 ZSH_COMPLETION  := completions/_plex.do
 FISH_COMPLETION := completions/plex.do.fish
@@ -24,22 +25,26 @@ FISH_COMPLETION := completions/plex.do.fish
 XDG_DATA_HOME   ?= $(HOME)/.local/share
 XDG_CONFIG_HOME ?= $(HOME)/.config
 ifeq ($(strip $(PREFIX)),)
+MAN_DIR             ?= $(XDG_DATA_HOME)/man
 COMPLETION_DIR      ?= $(XDG_DATA_HOME)/bash-completion/completions
 ZSH_COMPLETION_DIR  ?= $(XDG_DATA_HOME)/zsh/site-functions
 FISH_COMPLETION_DIR ?= $(XDG_CONFIG_HOME)/fish/completions
 else
+MAN_DIR             ?= $(PREFIX)/share/man
 COMPLETION_DIR      ?= $(PREFIX)/share/bash-completion/completions
 ZSH_COMPLETION_DIR  ?= $(PREFIX)/share/zsh/site-functions
 FISH_COMPLETION_DIR ?= $(PREFIX)/share/fish/vendor_completions.d
 endif
 
+MAN_TARGET  := $(DESTDIR)$(MAN_DIR)/man1/plex.do.1
 BASH_TARGET := $(DESTDIR)$(COMPLETION_DIR)/plex.do
 ZSH_TARGET  := $(DESTDIR)$(ZSH_COMPLETION_DIR)/_plex.do
 FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plex.do.fish
 
 .PHONY: help install uninstall reinstall develop install-completion \
         uninstall-completion install-completion-bash install-completion-zsh \
-        install-completion-fish build check lint dist-check clean distclean
+        install-completion-fish install-man uninstall-man check-version \
+        build check lint dist-check clean distclean
 
 # ---------------------------------------------------------------------------
 
@@ -50,6 +55,7 @@ help:
 	@echo "  uninstall             pip uninstall the package + remove completion"
 	@echo "  reinstall             uninstall then install"
 	@echo "  develop               editable install with dev extras (.[dev])"
+	@echo "  install-man           install the man page only"
 	@echo "  install-completion    install completions for bash, zsh, and fish"
 	@echo "  uninstall-completion  remove all installed completion scripts"
 	@echo "  build                 build the sdist and wheel into dist/"
@@ -62,6 +68,7 @@ help:
 	@echo "  bash completion:      $(BASH_TARGET)"
 	@echo "  zsh completion:       $(ZSH_TARGET)"
 	@echo "  fish completion:      $(FISH_TARGET)"
+	@echo "  man page:             $(MAN_TARGET)"
 	@echo ""
 	@echo "Set SHELLS to limit which are installed, e.g. SHELLS=\"bash zsh\""
 
@@ -69,21 +76,34 @@ help:
 # Install / uninstall
 # ---------------------------------------------------------------------------
 
-install: install-completion
+install: install-completion install-man
 	$(PIP) install $(PIP_FLAGS) .
 	@echo ""
 	@echo "Installed. Try: plex.do --help"
 	@echo "Then:          plex.do write-config-example && plex.do login"
 
-develop: install-completion
+develop: install-completion install-man
 	$(PIP) install $(PIP_FLAGS) -e ".[dev]"
 
-uninstall: uninstall-completion
+uninstall: uninstall-completion uninstall-man
 	-$(PIP) uninstall -y $(PACKAGE)
 
 reinstall:
 	$(MAKE) uninstall
 	$(MAKE) install
+
+install-man: $(MAN_PAGE)
+	@install -d "$(DESTDIR)$(MAN_DIR)/man1"
+	@install -m 644 "$(MAN_PAGE)" "$(MAN_TARGET)"
+	@echo "Installed man page       -> $(MAN_TARGET)"
+
+uninstall-man:
+	@if [ -f "$(MAN_TARGET)" ]; then \
+		rm -f "$(MAN_TARGET)"; \
+		echo "Removed $(MAN_TARGET)"; \
+	else \
+		echo "Not installed: $(MAN_TARGET)"; \
+	fi
 
 # Which shells to install completions for; override to limit.
 SHELLS ?= bash zsh fish
@@ -130,7 +150,18 @@ lint:
 dist-check:
 	$(PYTHON) -m twine check dist/*
 
-check: lint build dist-check
+# The version appears in three places; drift is silent otherwise.
+check-version:
+	@v=$$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/$(PACKAGE)/__init__.py); \
+	p=$$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1); \
+	m=$$(sed -n 's/^\.TH .* "plexdo \([^"]*\)".*/\1/p' $(MAN_PAGE)); \
+	if [ "$$v" = "$$p" ] && [ "$$v" = "$$m" ]; then \
+		echo "version $$v consistent across __init__.py, pyproject.toml, and the man page"; \
+	else \
+		echo "version mismatch: __init__=$$v pyproject=$$p man=$$m" >&2; exit 1; \
+	fi
+
+check: check-version lint build dist-check
 	@echo ""
 	@echo "All checks passed."
 

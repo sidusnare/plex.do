@@ -1,4 +1,5 @@
 include Makefile
+recursive-include man *.1
 include README.md
 include LICENSE
 include requirements.txt

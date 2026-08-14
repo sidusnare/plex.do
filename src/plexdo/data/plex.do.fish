@@ -93,7 +93,7 @@ function __plexdo_positionals
             continue
         end
         switch $t
-            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code -f --format --section
+            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code -f --format --section -p --prefix
                 set skip 1
                 continue
             case '-*'
@@ -252,12 +252,15 @@ for prog in plex.do plexdo
     complete -c $prog -n "__fish_seen_subcommand_from list-playlist; and __plexdo_at 1" \
         -a '(__plexdo_playlists_or_keys 0)' -d 'playlist'
     complete -c $prog -n "__fish_seen_subcommand_from export-playlist remove-playlist append-playlist build-randomize copy-playlist-all-users copy-playlist-to-user; and __plexdo_at 1" \
-        -a '(__plexdo_playlists 0)' -d 'playlist'
+        -a '(__plexdo_playlists_or_keys 0)' -d 'playlist'
 
     complete -c $prog -rF -n "__fish_seen_subcommand_from export-titles; and __plexdo_at 1"
     complete -c $prog -rF -n "__fish_seen_subcommand_from export-playlist; and __plexdo_at 2"
 
     # -- per-command options -------------------------------------------------
+    complete -c $prog -x -s p -l prefix \
+        -n '__fish_seen_subcommand_from list-playlist list-show export-playlist export-titles build-interleaved build-chronological build-randomize' \
+        -d 'Rewrite exported paths onto this prefix'
     complete -c $prog -rF -l m3u \
         -n '__fish_seen_subcommand_from list-playlist list-show build-interleaved build-chronological build-randomize' \
         -d 'Also export an M3U file using Plex server paths'
@@ -273,8 +276,8 @@ for prog in plex.do plexdo
     complete -c $prog -s s -l status -n '__fish_seen_subcommand_from rescan' -d 'Print all active scan jobs'
     complete -c $prog -s n -l now -n '__fish_seen_subcommand_from rescan' -d 'Cancel pending scans first'
     complete -c $prog -s o -l overwrite \
-        -n '__fish_seen_subcommand_from copy-playlist-all-users copy-playlist-to-user' \
-        -d 'Overwrite an existing playlist of the same name'
+        -n '__fish_seen_subcommand_from copy-playlist-all-users copy-playlist-to-user build-interleaved build-chronological build-randomize' \
+        -d 'Replace an existing playlist of the same name'
     complete -c $prog -l one-way -n '__fish_seen_subcommand_from copy-watched' -d 'Only write to the second user'
     complete -c $prog -x -s l -l library -n '__fish_seen_subcommand_from copy-watched' \
         -a '(__plexdo_libraries)' -d 'Restrict to one library'

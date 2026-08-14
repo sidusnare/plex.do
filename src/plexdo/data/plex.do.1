@@ -1,0 +1,442 @@
+.\" Man page for plex.do (plexdo).
+.\" Regenerate or edit alongside AI.prompt.md; the .TH version must match
+.\" __version__ in src/plexdo/__init__.py.
+.TH PLEX.DO 1 "2026-08-14" "plexdo 1.0.8" "User Commands"
+.
+.SH NAME
+plex.do \- command\-line interface for Plex Media Server
+.
+.SH SYNOPSIS
+.B plex.do
+.RI [ global-options ]
+.I command
+.RI [ command-options ]
+.RI [ arguments ...]
+.br
+.B plexdo
+.RI [ global-options ]
+.I command
+.RI [ command-options ]
+.RI [ arguments ...]
+.
+.SH DESCRIPTION
+.B plex.do
+builds and copies playlists, exports libraries to M3U or a static HTML photo
+gallery, synchronises watched state between users, streams media to standard
+output, and reports on server activity.
+.PP
+.B plexdo
+is an alias for the same program; prefer it on Windows, where a dot in a
+command name interacts awkwardly with
+.BR PATHEXT .
+.PP
+Wherever a
+.I user
+is required you may give the numeric user ID or the user's title, and
+wherever a
+.I library
+is required you may give the numeric library ID or its title. User ID
+.B 0
+always means the admin account. Titles are matched exactly first, then
+case\-insensitively. If a value is both one entry's ID and another's title the
+ID wins and a warning names the entry that was skipped; if two entries share a
+title the command aborts and asks for the numeric ID.
+.PP
+Commands that take an existing playlist accept its name or its ratingKey
+interchangeably.
+.
+.SH GLOBAL OPTIONS
+These may be given either before or after the command name.
+.TP
+.BR \-f ", " \-\-format " \fIFORMAT\fR"
+Output format: \fBtable\fR (default), \fBjson\fR, \fByaml\fR, \fBcsv\fR, or
+\fBclixml\fR.
+.TP
+.B \-\-json
+Shorthand for \fB\-\-format json\fR.
+.TP
+.BR \-v ", " \-\-verbose
+Print high\-level progress to standard error.
+.TP
+.B \-\-debug
+Print detailed internal logs to standard error.
+.TP
+.B \-\-dry\-run
+Show what would happen without mutating Plex.
+.TP
+.BR \-V ", " \-\-version
+Print the installed version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print help and exit. Every command accepts this.
+.PP
+All logging goes to standard error, so machine\-readable output on standard
+output is always safe to pipe.
+.
+.SH OUTPUT FORMATS
+.TP
+.B table
+Box\-drawn and width\-aligned, accounting for double\-width characters. Falls
+back to ASCII box characters when the console encoding cannot represent the
+Unicode ones.
+.TP
+.B json
+Non\-ASCII is escaped, so it prints on any console.
+.TP
+.B yaml
+Strings are always quoted, so a title such as \fBNO\fR or \fB1.10\fR survives
+as a string rather than being reinterpreted as a boolean or a float.
+.TP
+.B csv
+Header row plus one row per record, with newline line endings.
+.TP
+.B clixml
+PowerShell CLIXML with typed properties, for \fBImport\-Clixml\fR.
+.
+.SH COMMANDS
+.SS Listing and searching
+.TP
+.B list\-libraries
+List every library with its ID, type, and title.
+.TP
+.BI list\-titles " library " [ \-\-album " ALBUM" ]
+List the titles in a library. \fB\-\-album\fR restricts a photo library to one
+album and is ignored elsewhere.
+.TP
+.BI list\-show " ratingKey " [ \-\-m3u " PATH" ]
+List every episode of a show, skipping specials.
+.TP
+.BI list\-users
+List users with their ID, account type (\fBmanaged\fR, \fBhome\fR,
+\fBfriend\fR, \fBshared\fR), title, username, and email.
+.TP
+.BI list\-playlists " user"
+List a user's playlists.
+.TP
+.BI list\-playlist " user playlist " [ \-\-m3u " PATH" ]
+List the items in one playlist, named or by ratingKey.
+.TP
+.BI show\-metadata " ratingKey"
+Show full metadata for one item, with fields varying by media type.
+.TP
+.BI search " user query " [ \-\-media\-type " TYPE" "] [" \-\-library\-id " LIBRARY" ]
+Search as the given user. \fITYPE\fR is one of \fBmovie\fR, \fBshow\fR,
+\fBepisode\fR, \fBtrack\fR, \fBphoto\fR, \fBalbum\fR, \fBartist\fR. A library
+that cannot be searched is warned about and skipped rather than aborting.
+.
+.SS Building playlists
+Playlists are always constructed fully in memory, validated, previewed, and
+then created in exactly one API call.
+.B \-\-dry\-run
+stops after the preview.
+.TP
+.BI build\-interleaved " name ratingKey ..."
+Round\-robin the episodes of several shows into one playlist.
+.TP
+.BI build\-chronological " name ratingKey ..."
+Order shows and movies by original air date. An episode with no date is
+estimated from the median interval between its neighbours in the same season,
+and you are prompted only when that is impossible.
+.TP
+.BI build\-randomize " user source dest"
+Shuffle a playlist into a new one, using
+.BR secrets (3)
+rather than a predictable generator.
+.PP
+All three accept
+.BR \-o ", " \-\-overwrite ,
+.BI \-\-m3u " PATH",
+and
+.BR \-p ", " \-\-prefix .
+.
+.SS Copying and modifying
+.TP
+.BI copy\-playlist\-all\-users " source_user source_playlist " [ \-o ]
+Copy a playlist to every managed user, skipping the source user. A failure for
+one user is warned about and the run continues.
+.TP
+.BI copy\-playlist\-to\-user " source_user source_playlist user dest " [ \-o ]
+Copy a playlist to one user.
+.TP
+.BI append\-playlist " user playlist ratingKey ..."
+Append items to an existing playlist.
+.TP
+.BI remove\-playlist " user playlist"
+Delete a playlist.
+.PP
+Without
+.BR \-\-overwrite ,
+a copy whose name is taken falls back to appending
+.RB \(dq " admin copy" \(dq;
+if that is taken too the target is skipped with a warning and nothing is
+created or deleted.
+.
+.SS Watched state
+.TP
+.BI copy\-watched " user_a user_b " [ \-1 "] [" \-l " LIBRARY" "] [" \-t " KEY" "] [" \-\-unwatch ]
+Synchronise watched state and resume points between two users.
+.RS
+.PP
+By default the more recent \fBlastViewedAt\fR wins. With
+.B \-\-unwatch
+an item unwatched for either user becomes unwatched for both, and where both
+have progress the earliest \fBlastViewedAt\fR wins instead.
+.TP
+.BR \-1 ", " \-\-one\-way
+Only write to the second user; never modify the first.
+.TP
+.BR \-l ", " \-\-library " \fILIBRARY\fR"
+Restrict to one library.
+.TP
+.BR \-t ", " \-\-title " \fIKEY\fR"
+Restrict to one item, by ratingKey.
+.RE
+.PP
+Preview a full\-library run with
+.B \-\-dry\-run
+first: it compares every item both users can see.
+.
+.SS Exporting
+.TP
+.BI export\-playlist " user playlist path"
+Write a playlist to an M3U file.
+.TP
+.BI export\-titles " library path " [ \-\-sort " ORDER" "] [" \-\-album " ALBUM" ]
+Write a whole library to an M3U file, or to a self\-contained HTML gallery for
+a photo library. \fIORDER\fR is \fBalpha\fR (default), \fBdate\fR, or
+\fBrandom\fR.
+.PP
+M3U files hold the Plex server's own filesystem paths, not HTTP URLs.
+.BR \-p ", " \-\-prefix
+replaces the server\-side library root with another, for reading the export
+where the media is mounted differently; separators follow the prefix, so a
+Windows prefix produces backslashes. Because the library \fIroot\fR is what is
+replaced, one prefix maps every library to the same place: export libraries
+separately if they are mounted apart.
+.
+.SS Streaming
+.TP
+.BI read " library ratingKey"
+Stream a media file to standard output, for piping into a player or
+redirecting to a file. Quitting the player early is not an error.
+.
+.SS Server management
+.TP
+.BI rescan " [library] " [ \-s "] [" \-n ]
+Trigger a library scan for new files.
+.B \-s
+.RB ( \-\-status )
+lists active scan jobs instead and needs no library.
+.B \-n
+.RB ( \-\-now )
+cancels pending scans on every library first.
+.TP
+.BI status " " [ \-\-section " SECTION" ]
+Report server identity, active sessions, shared users, system accounts,
+reachable addresses, scans in progress, other background activity, and
+scheduled tasks. A section that cannot be read is warned about and left empty
+rather than losing the whole report. \fB\-\-format csv\fR and
+\fB\-\-format clixml\fR are flat and require \fB\-\-section\fR.
+.
+.SS Setup
+.TP
+.BI login " " [ \-u " USER" "] [" \-p " PASS" "] [" \-c " CODE" "] [" \-2 ]
+Authenticate against plex.tv and save the token.
+.B \-\-password
+is insecure: it is recorded in shell history and is briefly visible to
+.BR ps (1).
+Prefer the configuration file or the interactive prompt.
+.TP
+.B write\-config\-example
+Write a template configuration file.
+.B \-\-help
+prints the exact template that would be written.
+.
+.SH CONFIGURATION
+Read from
+.IR ~/.local/etc/plex.do.ini .
+.PP
+.EX
+[plex]
+url = http://localhost:32400
+token_path = $XDG_RUNTIME_DIR/.plex.token
+username = you@example.com
+password = your\-plex\-password
+
+[99]
+username = bob@example.com
+password = bobs\-plex\-password
+.EE
+.PP
+Values may contain environment variables as
+.B $VAR
+or
+.BR ${VAR} ,
+and
+.B ~
+for your home directory. A name that is not set is left as literal text and
+warned about. Interpolation is disabled, so a password may contain
+.B %
+freely.
+.PP
+A section named for a numeric user ID holds that user's credentials. They are
+used only when the server refuses the admin\-issued token for that user, which
+happens when nothing has been shared with them.
+.PP
+Both this file and the token file are checked at startup and a warning is
+printed if either is readable by group or other. On Windows the check is
+skipped, as access there is governed by ACLs.
+.
+.SH TOKEN STORE
+.I token_path
+holds a JSON object mapping username to token:
+.PP
+.EX
+{
+  "@admin": "xxxxxxxxxxxxxxxxxxxx",
+  "bob@example.com": "yyyyyyyyyyyyyyyyyyyy"
+}
+.EE
+.PP
+.B @admin
+is the reserved key used when no
+.B [plex] username
+is configured;
+.B @
+cannot occur in a Plex username, so it never collides. The file is written
+atomically with mode 0600. A file from an earlier version holding a single
+bare token is read as the admin token and converted on the next write.
+.PP
+When a command meets a 401 for a user, three sources are tried in turn: the
+server\-scoped token the admin can mint, a token already in the store, and a
+fresh login with that user's configured credentials. A token obtained by the
+last is saved, so the login happens once rather than on every run.
+.
+.SH SHELL COMPLETION
+Completions are provided for
+.BR bash ,
+.BR zsh ,
+and
+.BR fish ,
+covering user and library IDs and titles, rating keys, playlist names and
+keys, and photo album names. Numeric IDs are shown with the title they belong
+to.
+.PP
+Values are read from a 15\-minute cache under
+.IR ~/.cache/plex.do ,
+populated as a side effect of the list commands. A stale cache is refreshed in
+the background, so completion never blocks; the values offered are whatever is
+cached at that moment.
+.PP
+.B make install
+installs all three. See
+.B make help
+for the paths in use.
+.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Failure: missing configuration or token, an unknown ID, an inaccessible user,
+a name collision refused without \fB\-\-overwrite\fR, or an invalid argument.
+.
+.SH ENVIRONMENT
+.TP
+.B XDG_RUNTIME_DIR
+Referenced by the default \fItoken_path\fR. It is a private, user\-only tmpfs
+on most Linux systems, which suits a secret, but it is cleared at logout: you
+will need to run \fBplex.do login\fR again after a reboot. Point
+\fItoken_path\fR somewhere persistent to avoid that.
+.TP
+.B XDG_CACHE_HOME
+Overrides the location of the completion cache.
+.TP
+.B NO_COLOR
+Not used; output is never coloured.
+.
+.SH FILES
+.TP
+.I ~/.local/etc/plex.do.ini
+Configuration.
+.TP
+.I $XDG_RUNTIME_DIR/.plex.token
+Default token store, mode 0600.
+.TP
+.I ~/.cache/plex.do/
+Completion cache.
+.
+.SH EXAMPLES
+Create the configuration and authenticate:
+.PP
+.EX
+plex.do write\-config\-example
+plex.do login
+.EE
+.PP
+List libraries, then the titles in one of them by name:
+.PP
+.EX
+plex.do list\-libraries
+plex.do list\-titles "TV Shows"
+.EE
+.PP
+Build a playlist interleaving two shows, replacing any existing one:
+.PP
+.EX
+plex.do build\-interleaved "Mixed Run" 101 202 \-\-overwrite
+.EE
+.PP
+Preview a watched\-state sync before running it for real:
+.PP
+.EX
+plex.do \-\-dry\-run copy\-watched Alice Bob
+plex.do copy\-watched Alice Bob \-\-one\-way
+.EE
+.PP
+Export a library for a client that mounts the media elsewhere:
+.PP
+.EX
+plex.do export\-titles "TV Shows" ~/tv.m3u \-\-prefix '\e\eNAS\emedia'
+.EE
+.PP
+Stream an episode into a player:
+.PP
+.EX
+plex.do read 3 12345 | mpv \-
+.EE
+.PP
+Machine\-readable output:
+.PP
+.EX
+plex.do \-\-json list\-users | jq '.[] | select(.type == "home")'
+plex.do status \-\-section sessions \-f csv
+.EE
+.
+.SH NOTES
+On Windows,
+.B \-\-password
+scrubbing is best effort: the technique that hides the value from
+.BR ps (1)
+has no Windows equivalent, so it stays visible in the process list. Protecting
+the token file is also your responsibility there, as
+.BR chmod (1)
+cannot restrict it.
+.
+.SH SEE ALSO
+.BR jq (1),
+.BR mpv (1),
+.BR ps (1)
+.PP
+Project documentation:
+.B README.md
+in the source distribution.
+.
+.SH BUGS
+Report issues at the project's issue tracker.
+.
+.SH LICENSE
+GNU General Public License version 3 or later. This is free software: you are
+free to change and redistribute it. There is NO WARRANTY, to the extent
+permitted by law.

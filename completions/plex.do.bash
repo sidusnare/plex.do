@@ -273,7 +273,7 @@ _plexdo_positional_count() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        case "$word" in --m3u|-f|--format|--section) skip_next=1; continue ;; esac
+        case "$word" in --m3u|-f|--format|--section|-p|--prefix) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1
@@ -291,7 +291,7 @@ _plexdo_nth_positional() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        case "$word" in --m3u|-f|--format|--section) skip_next=1; continue ;; esac
+        case "$word" in --m3u|-f|--format|--section|-p|--prefix) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1
@@ -326,7 +326,9 @@ _plexdo_complete() {
     if [[ "$cur" == --* ]]; then
         case "$cmd" in
             list-playlist|list-show|build-interleaved|build-chronological|build-randomize)
-                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --m3u" -- "$cur") ) ;;
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --m3u --prefix -p" -- "$cur") ) ;;
+            export-playlist|export-titles)
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --prefix -p" -- "$cur") ) ;;
             *)
                 COMPREPLY=( $(compgen -W "$(_plexdo_global_flags)" -- "$cur") ) ;;
         esac
@@ -435,19 +437,27 @@ _plexdo_complete() {
                 *) COMPREPLY=() ;;
             esac ;;
 
-        # <name> <ratingKey...> [--m3u]
+        # <name> <ratingKey...> [--m3u] [-o]
         build-interleaved|build-chronological)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --m3u --overwrite -o --prefix -p" -- "$cur") )
+                return
+            fi
             case $pos in
                 0) COMPREPLY=() ;;
                 *) _plexdo_complete_rating_key ;;
             esac ;;
 
-        # <user_id> <source> <dest> [--m3u]
+        # <user_id> <source> <dest> [--m3u] [-o]
         build-randomize)
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --m3u --overwrite -o --prefix -p" -- "$cur") )
+                return
+            fi
             case $pos in
                 0) _plexdo_complete_user_id ;;
                 1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 *) COMPREPLY=() ;;
             esac ;;
 
@@ -459,7 +469,7 @@ _plexdo_complete() {
                 case $pos in
                     0) _plexdo_complete_user_id ;;
                     1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                       _plexdo_complete_playlist "$uid" ;;
+                       _plexdo_complete_playlist_id_or_name "$uid" ;;
                     *) COMPREPLY=() ;;
                 esac
             fi ;;
@@ -473,10 +483,10 @@ _plexdo_complete() {
             case $pos in
                 0) _plexdo_complete_user_id ;;
                 1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 2) _plexdo_complete_user_id ;;
                 3) uid="$(_plexdo_nth_positional "$cmd" 2)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 *) COMPREPLY=() ;;
             esac ;;
 
@@ -485,7 +495,7 @@ _plexdo_complete() {
             case $pos in
                 0) _plexdo_complete_user_id ;;
                 1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 *) COMPREPLY=() ;;
             esac ;;
 
@@ -494,7 +504,7 @@ _plexdo_complete() {
             case $pos in
                 0) _plexdo_complete_user_id ;;
                 1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 2) COMPREPLY=( $(compgen -f -- "$cur") ) ;;
                 *) COMPREPLY=() ;;
             esac ;;
@@ -504,7 +514,7 @@ _plexdo_complete() {
             case $pos in
                 0) _plexdo_complete_user_id ;;
                 1) uid="$(_plexdo_nth_positional "$cmd" 0)"
-                   _plexdo_complete_playlist "$uid" ;;
+                   _plexdo_complete_playlist_id_or_name "$uid" ;;
                 *) _plexdo_complete_rating_key ;;
             esac ;;
 

@@ -4,25 +4,20 @@
 
 from typing import List
 import argparse
-import sys
 
-from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 
 from plexdo.accounts import UserAccessError, _server_for_user
 from plexdo.constants import LOG, MediaItem
 from plexdo.convert import normalize_rating_key
-from plexdo.playlists import _copy_playlist_to
+from plexdo.playlists import _copy_playlist_to, _resolve_playlist
 
 
 def cmd_copy_playlist_all_users(plex: PlexServer, args: argparse.Namespace) -> None:
     """Copy a playlist from any user to all managed users."""
     src_plex = _server_for_user(plex, args.source_user_id)
-    try:
-        src: Playlist = src_plex.playlist(args.source_playlist)
-    except NotFound:
-        sys.exit(f"Source playlist not found: {args.source_playlist!r}")
+    src: Playlist = _resolve_playlist(src_plex, args.source_playlist)
 
     src_items: List[MediaItem] = list(src.items())
     account = plex.myPlexAccount()
@@ -48,10 +43,7 @@ def cmd_copy_playlist_all_users(plex: PlexServer, args: argparse.Namespace) -> N
 def cmd_copy_playlist_to_user(plex: PlexServer, args: argparse.Namespace) -> None:
     """Copy a playlist from any user to a specific user under a given name."""
     src_plex = _server_for_user(plex, args.source_user_id)
-    try:
-        src: Playlist = src_plex.playlist(args.source_playlist)
-    except NotFound:
-        sys.exit(f"Source playlist not found: {args.source_playlist!r}")
+    src: Playlist = _resolve_playlist(src_plex, args.source_playlist)
 
     src_items: List[MediaItem] = list(src.items())
     user_plex = _server_for_user(plex, args.user_id)
@@ -80,7 +72,7 @@ def register(
         help="Copy a playlist from any user to all managed users.",
     )
     p_all.add_argument("source_user_id", metavar="USER", help=_SRC_UID_HELP)
-    p_all.add_argument("source_playlist", help="Source playlist title (str).")
+    p_all.add_argument("source_playlist", help="Source. " + "Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
     p_all.add_argument(
         "-o", "--overwrite", action="store_true", default=False,
         help=_OVERWRITE_HELP,
@@ -91,7 +83,7 @@ def register(
         help="Copy a playlist from any user to a specific user.",
     )
     p_one.add_argument("source_user_id", metavar="USER", help=_SRC_UID_HELP)
-    p_one.add_argument("source_playlist", help="Source playlist title (str).")
+    p_one.add_argument("source_playlist", help="Source. " + "Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
     p_one.add_argument("user_id", metavar="USER", help="Target " + "User ID (int) or user title (str); use 0 for the admin account. Obtain both with list-users.")
     p_one.add_argument("dest", help="Destination playlist title (str).")
     p_one.add_argument(

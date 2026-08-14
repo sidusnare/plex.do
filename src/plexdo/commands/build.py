@@ -7,7 +7,6 @@ import argparse
 import datetime
 import sys
 
-from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 from plexapi.video import Episode, Movie, Show
@@ -17,7 +16,8 @@ from plexdo.airdates import _episodes_in_same_season, _prompt_for_date, _resolve
 from plexdo.constants import LOG, MediaItem
 from plexdo.convert import normalize_rating_key, parse_date
 from plexdo.m3u import _write_m3u
-from plexdo.playlists import finalize_playlist
+from plexdo.paths import add_prefix_argument, mapper_for
+from plexdo.playlists import _resolve_playlist, finalize_playlist
 from plexdo.titles import _fetch_show, _non_special_episodes, _shuffle_list
 
 
@@ -50,7 +50,7 @@ def cmd_build_interleaved(plex: PlexServer, args: argparse.Namespace) -> None:
     finalize_playlist(plex, args.name, items, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u)
+        _write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def _chronological_sort_key(
@@ -106,16 +106,13 @@ def cmd_build_chronological(plex: PlexServer, args: argparse.Namespace) -> None:
     finalize_playlist(plex, args.name, items, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u)
+        _write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def cmd_build_randomize(plex: PlexServer, args: argparse.Namespace) -> None:
     """Randomize a playlist and save to a new destination playlist."""
     user_plex = _server_for_user(plex, args.user_id)
-    try:
-        src: Playlist = user_plex.playlist(args.source)
-    except NotFound:
-        sys.exit(f"Source playlist not found: {args.source!r}")
+    src: Playlist = _resolve_playlist(user_plex, args.source)
 
     all_items: List[MediaItem] = list(src.items())
     randomized: List[MediaItem] = _shuffle_list(all_items)
@@ -124,7 +121,7 @@ def cmd_build_randomize(plex: PlexServer, args: argparse.Namespace) -> None:
     finalize_playlist(user_plex, args.dest, randomized, args)
 
     if args.m3u:
-        _write_m3u(randomized, args.m3u)
+        _write_m3u(randomized, args.m3u, mapper_for(user_plex, args))
 
 
 def register(
@@ -142,9 +139,14 @@ def register(
         help="One or more Show ratingKeys (int). Obtain with list-titles.",
     )
     p_bi.add_argument(
+        "-o", "--overwrite", action="store_true", default=False,
+        help="Replace an existing playlist of the same name instead of failing.",
+    )
+    p_bi.add_argument(
         "--m3u", metavar="PATH",
         help="Also export an M3U file at PATH using Plex server filesystem paths.",
     )
+    add_prefix_argument(p_bi)
 
     p_bc = sub.add_parser(
         "build-chronological", parents=parents,
@@ -156,21 +158,31 @@ def register(
         help="One or more Show/Movie ratingKeys (int). Obtain with list-titles.",
     )
     p_bc.add_argument(
+        "-o", "--overwrite", action="store_true", default=False,
+        help="Replace an existing playlist of the same name instead of failing.",
+    )
+    p_bc.add_argument(
         "--m3u", metavar="PATH",
         help="Also export an M3U file at PATH using Plex server filesystem paths.",
     )
+    add_prefix_argument(p_bc)
 
     p_br = sub.add_parser(
         "build-randomize", parents=parents,
         help="Randomize a source playlist into a new destination playlist.",
     )
     p_br.add_argument("user_id", metavar="USER", help="User ID (int) or user title (str); use 0 for the admin account. Obtain both with list-users.")
-    p_br.add_argument("source", help="Source playlist title (str).")
+    p_br.add_argument("source", help="Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
     p_br.add_argument("dest", help="Destination playlist title (str).")
+    p_br.add_argument(
+        "-o", "--overwrite", action="store_true", default=False,
+        help="Replace an existing playlist of the same name instead of failing.",
+    )
     p_br.add_argument(
         "--m3u", metavar="PATH",
         help="Also export an M3U file at PATH using Plex server filesystem paths.",
     )
+    add_prefix_argument(p_br)
 
 
 COMMANDS = {

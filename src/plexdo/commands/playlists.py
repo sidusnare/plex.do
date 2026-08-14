@@ -16,6 +16,7 @@ from plexdo.console import output
 from plexdo.constants import LOG, MediaItem
 from plexdo.convert import normalize_rating_key
 from plexdo.m3u import _write_m3u
+from plexdo.paths import add_prefix_argument, mapper_for
 from plexdo.playlists import _resolve_playlist
 from plexdo.titles import _display_title
 
@@ -52,33 +53,27 @@ def cmd_list_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     output(rows, args)
 
     if args.m3u:
-        _write_m3u(items, args.m3u)
+        _write_m3u(items, args.m3u, mapper_for(plex, args))
 
 
 def cmd_export_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Export an existing playlist to an M3U file."""
     user_plex = _server_for_user(plex, args.user_id)
-    try:
-        playlist: Playlist = user_plex.playlist(args.playlist)
-    except NotFound:
-        sys.exit(f"Playlist not found: {args.playlist!r}")
+    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
 
     items: List[MediaItem] = list(playlist.items())
     if not items:
         sys.exit(f"Playlist '{args.playlist}' is empty — nothing to export.")
 
     LOG.info("Exporting %d items from '%s' to %s", len(items), args.playlist, args.m3u)
-    _write_m3u(items, args.m3u)
+    _write_m3u(items, args.m3u, mapper_for(plex, args))
     print(f"Exported {len(items)} items to: {args.m3u}")
 
 
 def cmd_remove_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Delete a playlist from a user's account."""
     user_plex = _server_for_user(plex, args.user_id)
-    try:
-        playlist: Playlist = user_plex.playlist(args.playlist)
-    except NotFound:
-        sys.exit(f"Playlist not found: {args.playlist!r}")
+    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
 
     LOG.info("Removing playlist '%s' for user_id=%d", args.playlist, args.user_id)
     if args.dry_run:
@@ -91,10 +86,7 @@ def cmd_remove_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
 def cmd_append_playlist(plex: PlexServer, args: argparse.Namespace) -> None:
     """Append one or more items to an existing playlist."""
     user_plex = _server_for_user(plex, args.user_id)
-    try:
-        playlist: Playlist = user_plex.playlist(args.playlist)
-    except NotFound:
-        sys.exit(f"Playlist not found: {args.playlist!r}")
+    playlist: Playlist = _resolve_playlist(user_plex, args.playlist)
 
     rating_keys = [normalize_rating_key(k) for k in args.rating_keys]
     new_items: List[MediaItem] = []
@@ -145,25 +137,27 @@ def register(
         "--m3u", metavar="PATH",
         help="Also export an M3U file at PATH using Plex server filesystem paths.",
     )
+    add_prefix_argument(p_lp)
 
     p_ep = sub.add_parser("export-playlist", parents=parents, help="Export an existing playlist to an M3U file.")
     p_ep.add_argument("user_id", metavar="USER", help="User ID (int) or user title (str); use 0 for the admin account. Obtain both with list-users.")
-    p_ep.add_argument("playlist", help="Playlist title to export (str).")
+    p_ep.add_argument("playlist", help="To export. " + "Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
     p_ep.add_argument(
         "m3u", metavar="PATH",
-        help="Destination M3U file path (Plex server filesystem paths will be used).",
+        help="Destination M3U file path.",
     )
+    add_prefix_argument(p_ep)
 
     p_rp = sub.add_parser("remove-playlist", parents=parents, help="Delete a playlist from a user's account.")
     p_rp.add_argument("user_id", metavar="USER", help="User ID (int) or user title (str); use 0 for the admin account. Obtain both with list-users.")
-    p_rp.add_argument("playlist", help="Playlist title to delete (str).")
+    p_rp.add_argument("playlist", help="To delete. " + "Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
 
     p_ap = sub.add_parser(
         "append-playlist", parents=parents,
         help="Append one or more items to an existing playlist.",
     )
     p_ap.add_argument("user_id", metavar="USER", help="User ID (int) or user title (str); use 0 for the admin account. Obtain both with list-users.")
-    p_ap.add_argument("playlist", help="Playlist title to append to (str).")
+    p_ap.add_argument("playlist", help="To append to. " + "Playlist name (str) or ratingKey (int). Obtain either with list-playlists.")
     p_ap.add_argument(
         "rating_keys", nargs="+", type=int, metavar="ratingKey",
         help="One or more item ratingKeys to append (int). Obtain with list-titles or list-show.",

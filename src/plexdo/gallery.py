@@ -10,6 +10,7 @@ from plexapi.photo import Photo
 
 from plexdo.console import _cell
 from plexdo.constants import LOG
+from plexdo.paths import PathMapper, identity
 from plexdo.photos import _photo_file_path
 
 
@@ -98,7 +99,7 @@ def _gallery_css() -> str:
     """
 
 
-def _gallery_photo_anchor(photo: Photo) -> List[str]:
+def _gallery_photo_anchor(photo: Photo, map_path: PathMapper = identity) -> List[str]:
     """Return HTML lines for a single Spotlight.js photo anchor.
 
     Uses the Plex server filesystem path for both href and src so no
@@ -111,7 +112,7 @@ def _gallery_photo_anchor(photo: Photo) -> List[str]:
         LOG.debug("Skipping photo '%s': no server file path", photo.title)
         return []
     esc   = html_lib.escape
-    path  = esc(file_path)
+    path  = esc(map_path(file_path))
     title = esc(_cell(photo.title or ""))
     taken = esc(str(getattr(photo, "originallyAvailableAt", "") or ""))
     return [
@@ -123,7 +124,7 @@ def _gallery_photo_anchor(photo: Photo) -> List[str]:
 
 
 def _gallery_album_section(
-    album_name: str, album_photos: List[Photo]
+    album_name: str, album_photos: List[Photo], map_path: PathMapper = identity
 ) -> List[str]:
     """Return HTML lines for one album section."""
     esc = html_lib.escape
@@ -136,7 +137,7 @@ def _gallery_album_section(
         '    <div class="grid spotlight-group">',
     ]
     for photo in album_photos:
-        lines.extend(_gallery_photo_anchor(photo))
+        lines.extend(_gallery_photo_anchor(photo, map_path))
     lines += ["    </div>", "  </section>"]
     return lines
 
@@ -154,6 +155,7 @@ def _write_gallery_html(
     photos: List[Photo],
     output_path: str,
     library_title: str,
+    map_path: PathMapper = identity,
 ) -> None:
     """Write a Spotlight.js HTML5 gallery for a list of Photo objects.
 
@@ -179,7 +181,7 @@ def _write_gallery_html(
     )
     albums = _group_photos_by_album(photos)
     body   = [l for name in sorted(albums)
-               for l in _gallery_album_section(name, albums[name])]
+               for l in _gallery_album_section(name, albums[name], map_path)]
     foot   = [f'  <script src="{cdn}/dist/js/spotlight.bundle.min.js"></script>',
               "</body>", "</html>", ""]
 

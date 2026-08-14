@@ -174,6 +174,12 @@ plex.do build-randomize 0 "Source" "Shuffled"       # secrets-backed shuffle
 Playlists are always built fully in memory, validated, previewed, and then
 created in exactly one API call. `--dry-run` stops after the preview.
 
+Every command that takes an existing playlist accepts its **name or its
+ratingKey** interchangeably. Every command that creates one takes
+`-o/--overwrite`: without it a name collision is refused outright, leaving both
+the existing playlist and the new one untouched; with it the existing playlist
+is removed and replaced.
+
 `build-chronological` estimates missing air dates from the median interval
 between neighbouring episodes in the same season, and prompts only when that is
 impossible.
@@ -219,6 +225,27 @@ plex.do export-titles 5 ~/photos.html --album "Iceland 2019"
 M3U files contain **Plex server filesystem paths**, not HTTP URLs, so they are
 meant to be read on or from the server's filesystem. Photo libraries export a
 single self-contained HTML gallery instead.
+
+Where the media is reached by a different route — an SMB share, another mount
+point, a Windows drive letter — `-p/--prefix` swaps the server's library root
+for one that makes sense there:
+
+```bash
+plex.do export-titles 3 ~/tv.m3u --prefix '\\NAS\media'
+plex.do export-playlist 0 "Mix" ~/mix.m3u -p /Volumes/plex
+plex.do export-titles 5 ~/photos.html -p smb://nas/pix
+```
+
+```
+/mnt/media/TV/Breaking Bad/S01E01.mkv   ->   \\NAS\media\Breaking Bad\S01E01.mkv
+```
+
+Separators follow the prefix, so a Windows prefix produces backslashes. Note
+that the *library root* is what gets replaced, so one prefix maps every
+library onto the same place; export each library separately if they are
+mounted apart. A file below no known library root is appended whole, with one
+warning. `--prefix` applies to `--m3u` on the build and list commands too, and
+to the photo gallery. Without it, exports keep the server's own paths.
 
 ### Streaming
 
@@ -321,6 +348,18 @@ pip install -e ".[dev]"
 pylint src/plexdo          # expected: 10.00/10
 python -m build            # sdist + wheel
 ```
+
+## Manual
+
+A full man page ships with the project and is installed by `make install`:
+
+```bash
+man plex.do
+man -l man/plex.do.1     # straight from a source checkout
+```
+
+It documents every command, the configuration and token file formats, exit
+status, and the environment variables consulted.
 
 ## Platform support
 

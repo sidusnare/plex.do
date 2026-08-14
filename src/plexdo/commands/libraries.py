@@ -15,6 +15,7 @@ from plexdo.constants import LOG
 from plexdo.convert import normalize_rating_key
 from plexdo.gallery import _write_gallery_html
 from plexdo.m3u import _write_m3u
+from plexdo.paths import add_prefix_argument, mapper_for
 from plexdo.photos import _collect_library_items, _collect_photos
 from plexdo.sections import resolve_section
 from plexdo.sorting import _apply_sort
@@ -80,7 +81,7 @@ def cmd_list_show(plex: PlexServer, args: argparse.Namespace) -> None:
     output(rows, args)
 
     if args.m3u:
-        _write_m3u(episodes, args.m3u)  # type: ignore[arg-type]
+        _write_m3u(episodes, args.m3u, mapper_for(plex, args))  # type: ignore[arg-type]
 
 
 def cmd_export_titles(plex: PlexServer, args: argparse.Namespace) -> None:
@@ -107,9 +108,11 @@ def cmd_export_titles(plex: PlexServer, args: argparse.Namespace) -> None:
         len(sorted_items), args.sort, args.output_path,
     )
     if section.type == "photo":
-        _write_gallery_html(sorted_items, args.output_path, gallery_title)
+        _write_gallery_html(
+            sorted_items, args.output_path, gallery_title, mapper_for(plex, args)
+        )
     else:
-        _write_m3u(sorted_items, args.output_path)
+        _write_m3u(sorted_items, args.output_path, mapper_for(plex, args))
         print(f"Exported {len(sorted_items)} items to: {args.output_path}")
 
 
@@ -145,6 +148,7 @@ def register(
         "--m3u", metavar="PATH",
         help="Also export an M3U file at PATH using Plex server filesystem paths.",
     )
+    add_prefix_argument(p_ls)
 
     p_et = sub.add_parser(
         "export-titles", parents=parents,
@@ -173,6 +177,7 @@ def register(
         "--album", default=None, metavar="ALBUM",
         help="Photo libraries only: restrict export to a single album name.",
     )
+    add_prefix_argument(p_et)
 
 
 COMMANDS = {

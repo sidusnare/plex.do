@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plexdo"
-version = "1.0.5"
+version = "1.0.8"
 description = "A command-line interface for Plex Media Server: playlists, exports, watched-state sync, and library management."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -50,7 +50,7 @@ plexdo = "plexdo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-plexdo = ["data/plex.do.bash", "data/_plex.do", "data/plex.do.fish"]
+plexdo = ["data/plex.do.bash", "data/_plex.do", "data/plex.do.fish", "data/plex.do.1"]
 
 [tool.pylint.main]
 py-version = "3.11"

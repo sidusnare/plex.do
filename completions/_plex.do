@@ -137,7 +137,7 @@ _plexdo_positional() {
     if (( skip )); then skip=0; continue; fi
     case ${words[i]} in
       --m3u|--album|--sort|--media-type|--library-id|-l|--library|-t|--title|\
-      -u|--username|-p|--password|-c|--code|-f|--format|--section) skip=1; continue ;;
+      -u|--username|-p|--password|-c|--code|-f|--format|--section|-p|--prefix) skip=1; continue ;;
       -*) continue ;;
     esac
     if (( count == want )); then print -r -- ${words[i]}; return; fi
@@ -185,6 +185,7 @@ _plexdo_global_opts=(
 
 _plexdo_subcommand() {
   local m3u='--m3u[Also export an M3U file using Plex server paths]:m3u path:_files'
+  local pfx='(-p --prefix)'{-p,--prefix}'[Rewrite exported paths onto this prefix]:prefix:'
   case ${words[1]} in
     list-titles)
       _arguments $_plexdo_global_opts \
@@ -192,13 +193,13 @@ _plexdo_subcommand() {
         '1:library id:_plexdo_libraries'
       ;;
     list-show)
-      _arguments $_plexdo_global_opts $m3u '1:show rating key:_plexdo_rating_keys'
+      _arguments $_plexdo_global_opts $pfx $m3u '1:show rating key:_plexdo_rating_keys'
       ;;
     show-metadata)
       _arguments $_plexdo_global_opts '1:rating key:_plexdo_rating_keys'
       ;;
     export-titles)
-      _arguments $_plexdo_global_opts \
+      _arguments $_plexdo_global_opts $pfx \
         '--sort[Sort order]:order:(alpha date random)' \
         '--album[Photo libraries only: restrict to one album]:album:{_plexdo_albums $(_plexdo_positional 0)}' \
         '1:library id:_plexdo_libraries' \
@@ -222,25 +223,25 @@ _plexdo_subcommand() {
       _arguments $_plexdo_global_opts '1:user:_plexdo_users'
       ;;
     list-playlist)
-      _arguments $_plexdo_global_opts $m3u \
+      _arguments $_plexdo_global_opts $pfx $m3u \
         '1:user:_plexdo_users' \
         '2:playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}'
       ;;
     export-playlist)
-      _arguments $_plexdo_global_opts \
+      _arguments $_plexdo_global_opts $pfx \
         '1:user:_plexdo_users' \
-        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '2:playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}' \
         '3:output path:_files'
       ;;
     remove-playlist)
       _arguments $_plexdo_global_opts \
         '1:user:_plexdo_users' \
-        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}'
+        '2:playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}'
       ;;
     append-playlist)
       _arguments $_plexdo_global_opts \
         '1:user:_plexdo_users' \
-        '2:playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '2:playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}' \
         '*:rating key:_plexdo_rating_keys'
       ;;
     read)
@@ -255,27 +256,29 @@ _plexdo_subcommand() {
         '1:library id:_plexdo_libraries'
       ;;
     build-interleaved|build-chronological)
-      _arguments $_plexdo_global_opts $m3u \
+      _arguments $_plexdo_global_opts $pfx $m3u \
+        '(-o --overwrite)'{-o,--overwrite}'[Replace an existing playlist of the same name]' \
         '1:playlist name:' \
         '*:rating key:_plexdo_rating_keys'
       ;;
     build-randomize)
-      _arguments $_plexdo_global_opts $m3u \
+      _arguments $_plexdo_global_opts $pfx $m3u \
+        '(-o --overwrite)'{-o,--overwrite}'[Replace an existing playlist of the same name]' \
         '1:user:_plexdo_users' \
-        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '2:source playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}' \
         '3:destination playlist:'
       ;;
     copy-playlist-all-users)
       _arguments $_plexdo_global_opts \
         '(-o --overwrite)'{-o,--overwrite}'[Overwrite an existing playlist of the same name]' \
         '1:source user:_plexdo_users' \
-        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}'
+        '2:source playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}'
       ;;
     copy-playlist-to-user)
       _arguments $_plexdo_global_opts \
         '(-o --overwrite)'{-o,--overwrite}'[Overwrite an existing playlist of the same name]' \
         '1:source user:_plexdo_users' \
-        '2:source playlist:{_plexdo_playlists $(_plexdo_positional 0)}' \
+        '2:source playlist:{_plexdo_playlists_or_keys $(_plexdo_positional 0)}' \
         '3:target user:_plexdo_users' \
         '4:destination playlist:'
       ;;
