@@ -137,7 +137,7 @@ _plexdo_positional() {
     if (( skip )); then skip=0; continue; fi
     case ${words[i]} in
       --m3u|--album|--sort|--media-type|--library-id|-l|--library|-t|--title|\
-      -u|--username|-p|--password|-c|--code|-f|--format) skip=1; continue ;;
+      -u|--username|-p|--password|-c|--code|-f|--format|--section) skip=1; continue ;;
       -*) continue ;;
     esac
     if (( count == want )); then print -r -- ${words[i]}; return; fi
@@ -162,6 +162,7 @@ _plexdo_commands() {
     'show-metadata:Display metadata for a single item'
     'read:Stream a media file to stdout'
     'rescan:Trigger a library rescan or show scan status'
+    'status:Show server identity, sessions, users, scans, and tasks'
     'build-interleaved:Round-robin interleaved playlist from shows'
     'build-chronological:Date-sorted playlist from shows and movies'
     'build-randomize:Randomize a playlist into a new one'
@@ -209,6 +210,10 @@ _plexdo_subcommand() {
         '--library-id[Restrict to one library]:library id:_plexdo_libraries' \
         '1:user:_plexdo_users' \
         '2:query:'
+      ;;
+    status)
+      _arguments $_plexdo_global_opts \
+        '--section[Show only one section]:section:(server sessions users accounts connections scans activities tasks)'
       ;;
     list-users|list-libraries|write-config-example)
       _arguments $_plexdo_global_opts

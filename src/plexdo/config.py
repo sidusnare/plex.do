@@ -2,6 +2,7 @@
 
 """Config file loading, token reading, and permission checks."""
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 import configparser
@@ -12,6 +13,7 @@ import sys
 from plexapi.server import PlexServer
 
 from plexdo.constants import CONFIG_PATH, LOG, PERMISSIVE_MODE_MASK
+from plexdo.tokens import admin_token
 
 
 def check_file_permissions(path: Path, label: str) -> None:
@@ -63,6 +65,28 @@ def _expand_environment(cfg: configparser.ConfigParser) -> None:
         cfg.set("plex", key, expanded)
 
 
+def section_optional(
+    cfg: configparser.ConfigParser, section: str, key: str
+) -> Optional[str]:
+    """Return a stripped optional value from any section, or None."""
+    value = cfg.get(section, key, fallback=None)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+@lru_cache(maxsize=1)
+def cached_config() -> configparser.ConfigParser:
+    """Return the parsed config, reading the file at most once per process.
+
+    Memoised so the fallback login path can reach the per-user sections
+    without re-reading the file, and re-emitting its permission warning, once
+    per user in a loop.
+    """
+    return load_config()
+
+
 def config_optional(cfg: configparser.ConfigParser, key: str) -> Optional[str]:
     """Return a stripped optional value from the [plex] section, or None."""
     value = cfg.get("plex", key, fallback=None)
@@ -89,14 +113,28 @@ def load_config() -> configparser.ConfigParser:
     return cfg
 
 
-def read_token(token_path_raw: str) -> str:
-    """Expand path and read Plex token, failing fast if absent."""
+def token_store_path(cfg: configparser.ConfigParser) -> Path:
+    """Return the expanded path of the JSON token store."""
+    return Path(cfg.get("plex", "token_path")).expanduser()
+
+
+def read_token(token_path_raw: str, username: Optional[str] = None) -> str:
+    """Return the admin token from the JSON token store."""
     token_path = Path(token_path_raw).expanduser()
     if not token_path.exists():
-        sys.exit(f"Token file not found: {token_path}")
+        sys.exit(
+            f"Token file not found: {token_path}\n"
+            "Run `plex.do login` to authenticate and create it."
+        )
     check_file_permissions(token_path, "token file")
-    token = token_path.read_text(encoding="utf-8").strip()
-    LOG.debug("Token loaded from %s", token_path)
+    token = admin_token(token_path, username)
+    if not token:
+        sys.exit(
+            f"No admin token in {token_path}.\n"
+            "Run `plex.do login` to authenticate, or set [plex] username to "
+            "the account whose token should be used."
+        )
+    LOG.debug("Admin token loaded from %s", token_path)
     return token
 
 
@@ -104,6 +142,6 @@ def connect_plex(cfg: configparser.ConfigParser) -> PlexServer:
     """Create and return a connected PlexServer instance."""
     url = cfg.get("plex", "url")
     token_path = cfg.get("plex", "token_path")
-    token = read_token(token_path)
+    token = read_token(token_path, config_optional(cfg, "username"))
     LOG.info("Connecting to Plex at %s", url)
     return PlexServer(url, token)

@@ -64,6 +64,44 @@ token_path = $XDG_RUNTIME_DIR/.plex.token
 # password = your-plex-password
 ```
 
+### Multiple users
+
+A Plex server refuses an admin-issued token for a user it has shared nothing
+with, so acting on that user needs their own credentials. Add a section named
+for their user ID (from `plex.do list-users`):
+
+```ini
+[99]
+username = bob@example.com
+password = bobs-plex-password
+```
+
+When a command hits a 401 for a user, three sources are tried in order:
+
+1. the server-scoped token the admin can mint for them
+2. a token already saved in the token file
+3. a fresh login with the credentials in their `[<user_id>]` section
+
+A token obtained by step 3 is written back to the token file, so the login
+happens once rather than on every run.
+
+### The token file
+
+`token_path` holds a JSON object of username to token:
+
+```json
+{
+  "@admin": "xxxxxxxxxxxxxxxxxxxx",
+  "bob@example.com": "yyyyyyyyyyyyyyyyyyyy"
+}
+```
+
+`@admin` is the reserved key used when no `[plex] username` is set; `@` cannot
+appear in a Plex username, so it never collides with a real one. The file is
+written atomically with mode 0600. A file from an earlier version holding a
+single bare token is read as the admin token and converted to JSON on the next
+write — no manual migration needed.
+
 Environment variables are expanded in every value. A name that is not set is
 left as literal text and warned about, rather than failing later as a puzzling
 "no such file". `%` needs no escaping — interpolation is disabled, so a
@@ -149,6 +187,11 @@ plex.do append-playlist 0 "Mix" 55 56 57
 plex.do remove-playlist 0 "Mix"
 ```
 
+A user with no libraries shared to them cannot be acted on, even by the server
+admin — Plex scopes each token to what that user can see. Commands targeting
+one such user stop with an explanation; `copy-playlist-all-users` skips them
+with a one-line warning and carries on.
+
 Without `-o/--overwrite`, a copy that collides with both `Mix` and
 `Mix admin copy` is skipped with a warning rather than overwriting anything.
 
@@ -184,6 +227,25 @@ plex.do read 3 12345 | mpv -
 plex.do read 3 12345 > episode.mkv
 ```
 
+### Status
+
+```bash
+plex.do status                      # everything, as a set of tables
+plex.do status --section sessions   # just one section
+plex.do status -f json              # nested object, all sections
+plex.do status --section tasks -f csv
+```
+
+Reports server identity (name, version, machine ID, platform, platform
+version, last updated), active sessions, shared users, system accounts,
+reachable addresses, library scans in progress, other background activity, and
+scheduled maintenance tasks.
+
+A section that cannot be read — reachable addresses need a plex.tv round trip,
+for instance — is reported as a warning and left empty rather than losing the
+whole report. `--format csv` and `--format clixml` are flat by nature and need
+`--section`, since the eight sections have different shapes.
+
 ### Server management
 
 ```bash
@@ -197,7 +259,9 @@ plex.do rescan 3 --now       # cancel pending scans first
 Completion is provided for **bash, zsh, and fish**. All three cover user and library IDs
 *and* their titles, rating keys, playlist names and keys, and photo album
 names, reading a 15-minute cache under `~/.cache/plex.do` that the list
-commands populate as a side effect. When a cache is stale it refreshes in the
+commands populate as a side effect. Numeric IDs are shown with the title they
+belong to — `7  (Alice)`, `101  (Breaking Bad - Pilot)` — and only the ID is
+inserted once you narrow to one. When a cache is stale it refreshes in the
 background, so completion never blocks.
 
 `make install` sets all three up for you. To manage them separately:

@@ -32,3 +32,15 @@ def parse_date(value: DateInput) -> Optional[datetime.datetime]:
                 continue
         raise ValueError(f"Cannot parse date string: {value!r}")
     raise TypeError(f"Unsupported date type: {type(value)}")
+
+
+def _format_duration(milliseconds: Optional[int]) -> str:
+    """Convert milliseconds to a human-readable H:MM:SS string."""
+    if milliseconds is None:
+        return ""
+    total_seconds = milliseconds // 1000
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"

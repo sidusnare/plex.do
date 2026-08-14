@@ -62,21 +62,41 @@ def _yaml_scalar(value: Any) -> str:
     return f'"{text}"'
 
 
-def to_yaml(data: Payload) -> str:
-    """Render as a YAML sequence of mappings, or a single mapping."""
+def _yaml_lines(data: Payload, indent: int = 0) -> List[str]:
+    """Render a nested payload as YAML lines at the given indent level."""
+    pad = "  " * indent
     if isinstance(data, dict):
-        return "\n".join(f"{key}: {_yaml_scalar(val)}" for key, val in data.items())
-    records = _as_records(data)
-    if not records:
+        lines: List[str] = []
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                if not value:
+                    lines.append(f"{pad}{key}: " + ("{}" if isinstance(value, dict) else "[]"))
+                else:
+                    lines.append(f"{pad}{key}:")
+                    lines.extend(_yaml_lines(value, indent + 1))
+            else:
+                lines.append(f"{pad}{key}: {_yaml_scalar(value)}")
+        return lines
+    if isinstance(data, list):
+        lines = []
+        for item in data:
+            if isinstance(item, dict) and item:
+                nested = _yaml_lines(item, indent + 1)
+                lines.append(f"{pad}- {nested[0].lstrip()}")
+                lines.extend(nested[1:])
+            else:
+                lines.append(f"{pad}- {_yaml_scalar(item)}")
+        return lines
+    return [f"{pad}{_yaml_scalar(data)}"]
+
+
+def to_yaml(data: Payload) -> str:
+    """Render as YAML, including nested mappings and sequences."""
+    if isinstance(data, list) and not data:
         return "[]"
-    lines: List[str] = []
-    for record in records:
-        first = True
-        for key, val in record.items():
-            prefix = "- " if first else "  "
-            lines.append(f"{prefix}{key}: {_yaml_scalar(val)}")
-            first = False
-    return "\n".join(lines)
+    if isinstance(data, dict) and not data:
+        return "{}"
+    return "\n".join(_yaml_lines(data))
 
 
 def to_csv(data: Payload) -> str:

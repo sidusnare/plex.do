@@ -23,11 +23,11 @@ import sys
 from typing import List, Optional
 
 from plexdo import __version__
-from plexdo.accounts import resolve_user_arguments
+from plexdo.accounts import UserAccessError, resolve_user_arguments
 from plexdo.sections import resolve_library_arguments
 from plexdo.commands import build_registry, register_all
 from plexdo.formats import OUTPUT_FORMATS
-from plexdo.config import connect_plex, load_config
+from plexdo.config import cached_config, connect_plex
 from plexdo.logs import configure_logging
 from plexdo.security import scrub_password_argument
 
@@ -124,11 +124,16 @@ def main(argv: Optional[List[str]] = None) -> None:
         sys.exit(f"Unknown command: {args.command}")
 
     if args.command in needs_plex:
-        plex = connect_plex(load_config())
+        plex = connect_plex(cached_config())
         # Commands receive numeric user and library IDs; titles are resolved
         # here so no handler has to care which form the user typed.
         resolve_user_arguments(plex, args)
         resolve_library_arguments(plex, args)
-        handler(plex, args)
+        try:
+            handler(plex, args)
+        except UserAccessError as exc:
+            # Raised deep in accounts._server_for_user so the all-users loop
+            # can skip a user; for a single-user command it is fatal.
+            sys.exit(str(exc))
     else:
         handler(None, args)

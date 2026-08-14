@@ -431,6 +431,27 @@ stderr if stdout is a tty, then proceed. `--dry-run` prints title, server path,
 and URL to stderr without streaming. Get the URL from
 `plex.url(part.key, includeToken=True)`.
 
+### `status [--section SECTION]`
+Eight sections, in order: `server` (a single record: friendlyName, version,
+machineIdentifier, platform, platformVersion, updatedAt, myPlexUsername,
+myPlexSubscription), `sessions`, `users`, `accounts` (`plex.systemAccounts()`,
+which is a different list from the shared users), `connections`, `scans`,
+`activities`, `tasks` (`plex.butlerTasks()`).
+
+`plex.activities` is a property, and it carries both library scanning and
+other background work; split it on whether the `type` mentions scan/refresh/
+library so "scans" and "background tasks" are separate sections.
+
+Each section is collected in its own try/except so one failure costs a warning
+rather than the report: `connections` needs a plex.tv round trip via
+`account.resource(friendlyName).connections`, which a local-only or offline
+server cannot do.
+
+Table output prints every section with a heading, `(none)` when empty. JSON and
+YAML emit one nested object. CSV and CLIXML are flat and cannot carry eight
+differently shaped sections, so they require `--section` and exit with a clear
+message naming the choices when it is missing.
+
 ### `rescan [library_id] [-s/--status] [-n/--now]`
 `library_id` is `nargs="?"`; `sys.exit` if it is absent and `--status` was not given.
 
@@ -691,6 +712,72 @@ that is invisible when developing on Linux:
   the binary existing: fish reports an unknown command *before* the
   redirection applies, scribbling on the prompt mid-completion.
 
+## TOKEN STORE AND MULTI-USER ACCESS
+
+`token_path` holds a JSON object mapping username to token, handled by
+`tokens.py` (`load_store`, `save_store`, `lookup`, `store_token`,
+`admin_token`). Writes are atomic (temp file then `replace`) and mode 0600 on
+POSIX.
+
+Two compatibility points that are easy to miss:
+
+- A file that is not JSON is a **pre-1.0.4 bare token**. Read it as
+  `{ADMIN_KEY: contents}` rather than erroring, so an upgrade needs no manual
+  step; the next write converts it.
+- `ADMIN_KEY` is `"@admin"`. A reserved key is needed because `[plex]
+  username` is optional, and `@` cannot occur in a Plex username so it cannot
+  collide. `admin_token()` resolves in order: configured username, reserved
+  key, then a store holding exactly one entry — which is what `login` with no
+  configured username leaves behind.
+
+The config file gains a section per user, named for the numeric user ID, each
+holding `username` and `password`.
+
+`accounts._server_for_user` tries three sources in order and returns the first
+that connects, because a server refuses an admin-issued token for a user it
+has shared nothing with:
+
+1. `user.get_token(machineIdentifier)` — the admin-issued, server-scoped token
+2. a token already in the store, under any of the candidate usernames
+   (configured, then `user.username`, `user.email`, `user.title`)
+3. `MyPlexAccount(username, password)` from the `[<user_id>]` section, whose
+   `authenticationToken` is then **saved to the store** so the login happens
+   once rather than every run
+
+Each stage must return None rather than raising, so the next can be tried; a
+stored token that has gone stale must fall through to a fresh login.
+`UserAccessError` is raised only when all three fail.
+
+Reading the config repeatedly would re-emit its permission warning once per
+user in a loop, so expose a `cached_config()` memoised with
+`functools.lru_cache(maxsize=1)` and use it everywhere the fallback path needs
+the per-user sections.
+
+## USER ACCESS FAILURES
+
+A shared user with no libraries shared to them cannot be acted on at all, even
+by the server admin: `user.get_token()` succeeds but the resulting
+`PlexServer(...)` raises `plexapi.exceptions.Unauthorized`, carrying the
+server's HTML error page in its message. Untreated this surfaces as a raw
+traceback ending in a wall of HTML.
+
+`accounts._server_for_user` must guard both `get_token()` and the `PlexServer`
+construction, and a token that comes back empty, raising `UserAccessError`
+with a plain-language explanation: the token was rejected, admin rights do not
+override per-user scoping, and the fix is to share a library or pass 0. The
+underlying exception goes to `LOG.debug` only, so the HTML never reaches the
+user.
+
+`UserAccessError` must be an ordinary `Exception`, **not** a `sys.exit`.
+`copy-playlist-all-users` catches per-user failures and continues; `SystemExit`
+derives from `BaseException` and would tear down the whole run on the first
+inaccessible user. `cli.main` catches it around the dispatch and converts it to
+a clean `sys.exit` for single-user commands.
+
+It also carries a one-line `summary` attribute. The all-users loop logs that
+rather than the full text, so skipping four users produces four lines instead
+of twelve paragraphs.
+
 ## ERROR HANDLING
 
 `sys.exit` with a clear message for: missing config, missing token, unknown
@@ -753,6 +840,24 @@ split from `"Album - Photo Title"`), plus `_plexdo_find_cmd`,
 Values that can contain spaces (library titles, user titles, playlist names)
 must reach `COMPREPLY` as whole lines via the read-loop helper, **not** through
 `compgen -W`, which word-splits `TV Shows` into two candidates.
+
+Numeric IDs must be shown with their titles: `7  (Alice)`, `101  (Breaking Bad
+- Pilot)`. bash cannot attach descriptions to completions, but it only
+*inserts* a candidate once a single one remains — with several it merely lists
+them and inserts their common prefix. `_plexdo_compreply_pairs` exploits that:
+it lists the annotated forms while a choice remains and substitutes the bare
+value the moment the choice collapses to one. Every annotated form begins with
+its own value, so the common prefix bash inserts stays a valid prefix.
+
+Distinguish what is *insertable* from what is merely *shown*: user and library
+titles are insertable, because those arguments accept a title, but an item
+title is not — `fetchItem` needs a numeric ratingKey, so a title there is
+display only.
+
+`_plexdo_complete_rating_key` merges keys from every `titles.*.json`, so it
+must gather them all and render once; filling `COMPREPLY` inside the loop lets
+a later library discard an earlier one's matches. Clear `COMPREPLY` on entry,
+since bash does not reset it between invocations.
 
 ### zsh — `completions/_plex.do`
 

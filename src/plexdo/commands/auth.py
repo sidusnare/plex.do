@@ -18,6 +18,7 @@ from plexapi.server import PlexServer
 from plexdo.config import config_optional, load_config
 from plexdo.console import output, output_format
 from plexdo.constants import CONFIG_EXAMPLE, CONFIG_PATH, LOG
+from plexdo.tokens import ADMIN_KEY, store_token
 
 
 def _prompt_username(supplied: Optional[str]) -> str:
@@ -82,17 +83,15 @@ def _obtain_token(username: str, password: str, code: Optional[str]) -> str:
     return account.authenticationToken
 
 
-def _save_token(token: str, token_path_raw: str) -> Path:
-    """Write the token to disk with owner-only permissions."""
+def _save_token(token: str, token_path_raw: str, username: Optional[str]) -> Path:
+    """Add this account's token to the JSON store, keeping any others."""
     path = Path(token_path_raw).expanduser()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(token + "\n", encoding="utf-8")
+    store_token(path, username or ADMIN_KEY, token)
     if os.name == "nt":
         # chmod on Windows only toggles the read-only bit, so claiming 0600
         # would be misleading; NTFS ACLs govern access instead.
         LOG.debug("Token written to %s (POSIX mode not applicable)", path)
     else:
-        path.chmod(0o600)
         LOG.debug("Token written to %s (mode 0600)", path)
     return path
 
@@ -127,7 +126,7 @@ def cmd_login(_plex: Optional[PlexServer], args: argparse.Namespace) -> None:
               f"{Path(token_path_raw).expanduser()}", file=sys.stderr)
         return
 
-    path = _save_token(token, token_path_raw)
+    path = _save_token(token, token_path_raw, username)
     verified = _verify_token(url, token)
 
     if output_format(args) == "table":

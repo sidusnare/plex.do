@@ -17,9 +17,65 @@
 _PLEXDO_CACHE="${HOME}/.cache/plex.do"
 _PLEXDO_TTL=900   # seconds (15 minutes)
 
+# Git Bash on Windows, and some minimal systems, ship "python" but not
+# "python3".
+_plexdo_python() {
+    if command -v python3 >/dev/null 2>&1; then echo python3
+    else echo python; fi
+}
+
 # bash 3.2 - the system bash still shipped by macOS - has no mapfile or
 # readarray, so COMPREPLY is filled with a read loop instead. Redirecting into
 # a function does not create a subshell, so the assignment survives.
+
+# Emit "value<TAB>label" lines from a JSON cache, filtered to the current word.
+_plexdo_json_pairs() {
+    local file="$1" field="$2" label="$3"
+    [[ -f "$file" ]] || return
+    "$(_plexdo_python)" - "$cur" "$field" "$label" "$file" 2>/dev/null << 'PYJSON'
+import json, sys
+cur, field, label, path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    rows = json.load(open(path, encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+for row in rows:
+    value = str(row.get(field, "")).strip()
+    if not value or not value.startswith(cur):
+        continue
+    text = str(row.get(label, "")).strip()
+    print(f"{value}\t{text}" if text else value)
+PYJSON
+}
+
+# Fill COMPREPLY from "value<TAB>label" lines: show the label, insert the value.
+#
+# bash cannot attach descriptions to completions, but it only *inserts* a
+# candidate once a single one remains; with several it merely lists them and
+# inserts their common prefix. So the annotated forms are safe to display while
+# there is still a choice, and the bare value is substituted the moment that
+# choice collapses to one. Each annotated form starts with its own value, so
+# the common prefix bash inserts remains a valid prefix of the real value.
+_plexdo_compreply_pairs() {
+    local value label
+    local -a values labels
+    COMPREPLY=()
+    while IFS=$'\t' read -r value label; do
+        [ -n "$value" ] || continue
+        values+=("$value")
+        if [ -n "$label" ]; then
+            labels+=("$value  ($label)")
+        else
+            labels+=("$value")
+        fi
+    done
+    if [ ${#values[@]} -eq 1 ]; then
+        COMPREPLY=("${values[0]}")
+    elif [ ${#values[@]} -gt 1 ]; then
+        COMPREPLY=("${labels[@]}")
+    fi
+}
+
 _plexdo_compreply() {
     local line
     while IFS= read -r line; do
@@ -78,10 +134,11 @@ PYEOF
 _plexdo_complete_user_id() {
     local cache="$_PLEXDO_CACHE/users.json"
     _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-users
-    COMPREPLY=()
-    _plexdo_compreply < <(
-        case "0" in "$cur"*) echo 0 ;; esac
-        _plexdo_json_candidates "$cache" "id"
+    # Commands accept an ID or a title, so both are insertable; each ID
+    # carries its title as an annotation so it is clear which account it is.
+    _plexdo_compreply_pairs < <(
+        case "0" in "$cur"*) printf '0\tadmin account\n' ;; esac
+        _plexdo_json_pairs "$cache" "id" "title"
         _plexdo_json_candidates "$cache" "title"
     )
 }
@@ -90,9 +147,8 @@ _plexdo_complete_user_id() {
 _plexdo_complete_library_id() {
     local cache="$_PLEXDO_CACHE/libraries.json"
     _plexdo_cache_is_fresh "$cache" || _plexdo_bg_refresh list-libraries
-    COMPREPLY=()
-    _plexdo_compreply < <(
-        _plexdo_json_candidates "$cache" "id"
+    _plexdo_compreply_pairs < <(
+        _plexdo_json_pairs "$cache" "id" "title"
         _plexdo_json_candidates "$cache" "title"
     )
 }
@@ -101,20 +157,27 @@ _plexdo_complete_library_id() {
 # triggers per-library background refresh for any stale file, and kicks off
 # list-titles for each known library if no title cache exists at all.
 _plexdo_complete_rating_key() {
-    local found=0
+    local found=0 f lib_id pairs=""
+    COMPREPLY=()
     for f in "$_PLEXDO_CACHE"/titles.*.json; do
         [[ -f "$f" ]] || continue
         found=1
         if ! _plexdo_cache_is_fresh "$f"; then
-            local lib_id="${f##*/titles.}"
+            lib_id="${f##*/titles.}"
             lib_id="${lib_id%.json}"
             _plexdo_bg_refresh list-titles "$lib_id"
         fi
-        _plexdo_compreply < <(
-            _plexdo_json_candidates "$f" "ratingKey"
-        )
+        # Keys are gathered from every library first, then rendered once, so
+        # that a later library cannot overwrite an earlier one's matches.
+        pairs+="$(_plexdo_json_pairs "$f" "ratingKey" "title")"$'\n'
     done
-    if (( ! found )); then
+    if (( found )); then
+        # Only the key is insertable here: fetchItem takes a numeric
+        # ratingKey, so the title is shown purely to identify the item.
+        _plexdo_compreply_pairs <<< "$pairs"
+        return
+    fi
+    {
         local lib_cache="$_PLEXDO_CACHE/libraries.json"
         if [[ -f "$lib_cache" ]]; then
             local lib_id
@@ -124,7 +187,7 @@ _plexdo_complete_rating_key() {
         else
             _plexdo_bg_refresh list-libraries
         fi
-    fi
+    }
 }
 
 # Complete a playlist by title OR ratingKey for a given user_id.
@@ -177,7 +240,7 @@ PYEOF
 
 _plexdo_commands() {
     echo "list-libraries list-titles list-users list-playlists list-playlist \
-list-show show-metadata search read rescan build-interleaved build-chronological build-randomize \
+list-show show-metadata search read rescan status build-interleaved build-chronological build-randomize \
 copy-playlist-all-users copy-playlist-to-user export-playlist remove-playlist \
 append-playlist export-titles copy-watched login write-config-example"
 }
@@ -210,7 +273,7 @@ _plexdo_positional_count() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        case "$word" in --m3u|-f|--format) skip_next=1; continue ;; esac
+        case "$word" in --m3u|-f|--format|--section) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1
@@ -228,7 +291,7 @@ _plexdo_nth_positional() {
     for (( i=1; i < cword; i++ )); do
         word="${words[$i]}"
         if (( skip_next )); then skip_next=0; continue; fi
-        case "$word" in --m3u|-f|--format) skip_next=1; continue ;; esac
+        case "$word" in --m3u|-f|--format|--section) skip_next=1; continue ;; esac
         if [[ "$word" == -* ]]; then continue; fi
         if (( ! found_cmd )); then
             [[ "$word" == "$cmd" ]] && found_cmd=1
@@ -319,6 +382,16 @@ _plexdo_complete() {
                 0) _plexdo_complete_rating_key ;;
                 *) COMPREPLY=() ;;
             esac ;;
+
+        # [--section SECTION]
+        status)
+            if [[ "$prev" == "--section" ]]; then
+                COMPREPLY=( $(compgen -W "server sessions users accounts connections scans activities tasks" -- "$cur") )
+            elif [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "$(_plexdo_global_flags) --section" -- "$cur") )
+            else
+                COMPREPLY=()
+            fi ;;
 
         # [library_id] [-s/--status] [-n/--now]
         rescan)

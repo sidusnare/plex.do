@@ -93,7 +93,7 @@ function __plexdo_positionals
             continue
         end
         switch $t
-            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code -f --format
+            case --m3u --album --sort --media-type --library-id -l --library -t --title -u --username -p --password -c --code -f --format --section
                 set skip 1
                 continue
             case '-*'
@@ -182,9 +182,9 @@ end
 # Commands
 # ---------------------------------------------------------------------------
 
-set -l plexdo_cmds list-libraries list-titles list-show export-titles search \
+set -l plexdo_cmds list-libraries list-titles list-show export-titles search status \
     list-users list-playlists list-playlist export-playlist remove-playlist \
-    append-playlist show-metadata read rescan build-interleaved \
+    append-playlist show-metadata read rescan status build-interleaved \
     build-chronological build-randomize copy-playlist-all-users \
     copy-playlist-to-user copy-watched login write-config-example
 
@@ -211,6 +211,7 @@ for prog in plex.do plexdo
     complete -c $prog -n __plexdo_no_subcommand -a show-metadata -d 'Display metadata for a single item'
     complete -c $prog -n __plexdo_no_subcommand -a read -d 'Stream a media file to stdout'
     complete -c $prog -n __plexdo_no_subcommand -a rescan -d 'Trigger a library rescan or show scan status'
+    complete -c $prog -n __plexdo_no_subcommand -a status -d 'Show server identity, sessions, users, scans, and tasks'
     complete -c $prog -n __plexdo_no_subcommand -a build-interleaved -d 'Round-robin playlist from shows'
     complete -c $prog -n __plexdo_no_subcommand -a build-chronological -d 'Date-sorted playlist from shows and movies'
     complete -c $prog -n __plexdo_no_subcommand -a build-randomize -d 'Randomize a playlist into a new one'
@@ -268,6 +269,7 @@ for prog in plex.do plexdo
         -a 'movie show episode track photo album artist' -d 'Restrict to one media type'
     complete -c $prog -x -l library-id -n '__fish_seen_subcommand_from search' \
         -a '(__plexdo_libraries)' -d 'Restrict to one library'
+    complete -c $prog -x -l section -n '__fish_seen_subcommand_from status' -a 'server sessions users accounts connections scans activities tasks' -d 'Show only one section'
     complete -c $prog -s s -l status -n '__fish_seen_subcommand_from rescan' -d 'Print all active scan jobs'
     complete -c $prog -s n -l now -n '__fish_seen_subcommand_from rescan' -d 'Cancel pending scans first'
     complete -c $prog -s o -l overwrite \

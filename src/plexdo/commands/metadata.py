@@ -2,7 +2,7 @@
 
 """Per-item metadata display command."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import argparse
 
 from plexapi.audio import Track
@@ -10,20 +10,8 @@ from plexapi.server import PlexServer
 from plexapi.video import Episode, Movie, Show
 
 from plexdo.console import _cell, output
-from plexdo.convert import normalize_rating_key
+from plexdo.convert import _format_duration, normalize_rating_key
 from plexdo.titles import _display_title, fetch_item
-
-
-def _format_duration(milliseconds: Optional[int]) -> str:
-    """Convert milliseconds to a human-readable H:MM:SS string."""
-    if milliseconds is None:
-        return ""
-    total_seconds = milliseconds // 1000
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{seconds:02d}"
-    return f"{minutes}:{seconds:02d}"
 
 
 def _base_metadata(item: Any) -> Dict[str, Any]:

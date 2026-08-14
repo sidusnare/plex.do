@@ -10,7 +10,7 @@ from plexapi.exceptions import NotFound
 from plexapi.playlist import Playlist
 from plexapi.server import PlexServer
 
-from plexdo.accounts import _server_for_user
+from plexdo.accounts import UserAccessError, _server_for_user
 from plexdo.constants import LOG, MediaItem
 from plexdo.convert import normalize_rating_key
 from plexdo.playlists import _copy_playlist_to
@@ -39,6 +39,8 @@ def cmd_copy_playlist_all_users(plex: PlexServer, args: argparse.Namespace) -> N
                 src_items, user_plex, args.source_playlist, args,
                 f"user {user.title!r} (id={user_id})",
             )
+        except UserAccessError as exc:
+            LOG.warning("Skipping user '%s': %s", user.title, exc.summary)
         except Exception as exc:  # pylint: disable=broad-except
             LOG.warning("Failed for user '%s': %s", user.title, exc)
 
