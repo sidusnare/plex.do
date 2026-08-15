@@ -19,13 +19,13 @@ DateInput = Union[str, datetime.date, datetime.datetime, None]
 MediaItem = Union[Episode, Movie, Track, Photo]
 
 
-CONFIG_PATH = Path("~/.local/etc/plex.do.ini").expanduser()
+CONFIG_PATH = Path("~/.local/etc/plexdo.ini").expanduser()
 
 
-CACHE_DIR = Path("~/.cache/plex.do").expanduser()
+CACHE_DIR = Path("~/.cache/plexdo").expanduser()
 
 
-LOG = logging.getLogger("plex.do")
+LOG = logging.getLogger("plexdo")
 
 
 # Group/other permission bits; any set on a secret file triggers a warning.
@@ -40,17 +40,17 @@ CONFIG_EXAMPLE = (
     "# Values may contain environment variables as $VAR or ${VAR}, and ~ for\n"
     "# your home directory. XDG_RUNTIME_DIR is a private, user-only tmpfs on\n"
     "# most Linux systems, which suits a secret -- but it is cleared at logout,\n"
-    "# so you will need to run `plex.do login` again after each reboot. Point\n"
+    "# so you will need to run `plexdo login` again after each reboot. Point\n"
     "# token_path somewhere persistent if you would rather not.\n"
     "token_path = $XDG_RUNTIME_DIR/.plex.token\n"
     "\n"
-    "# Optional credentials used by `plex.do login`.\n"
+    "# Optional credentials used by `plexdo login`.\n"
     "# The password is stored in plaintext, so keep this file mode 0600.\n"
     "# Supplying --username on the command line ignores the password below.\n"
     "# username = you@example.com\n"
     "# password = your-plex-password\n"
     "\n"
-    "# Per-user credentials, one section per user ID (see `plex.do\n"
+    "# Per-user credentials, one section per user ID (see `plexdo\n"
     "# list-users`). These are used only when the server refuses the\n"
     "# admin-issued token for that user, which happens when nothing has been\n"
     "# shared with them. The resulting token is saved to token_path, so the\n"

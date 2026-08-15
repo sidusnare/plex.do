@@ -1,11 +1,11 @@
-# fish completion for plex.do
+# fish completion for plexdo
 #
 # Installation:
-#   Per user:    cp plex.do.fish ~/.config/fish/completions/
-#   System-wide: cp plex.do.fish /usr/local/share/fish/vendor_completions.d/
+#   Per user:    cp plexdo.fish ~/.config/fish/completions/
+#   System-wide: cp plexdo.fish /usr/local/share/fish/vendor_completions.d/
 #
 # Completion for user IDs, library IDs, rating keys, playlists, and albums is
-# read from the 15-minute cache under ~/.cache/plex.do that the list commands
+# read from the 15-minute cache under ~/.cache/plexdo that the list commands
 # populate. A stale cache is refreshed in the background so completion never
 # blocks; the values shown come from whatever is cached at that moment.
 
@@ -15,9 +15,9 @@
 
 function __plexdo_cache_dir --description 'Directory holding the completion caches'
     if set -q XDG_CACHE_HOME
-        echo $XDG_CACHE_HOME/plex.do
+        echo $XDG_CACHE_HOME/plexdo
     else
-        echo $HOME/.cache/plex.do
+        echo $HOME/.cache/plexdo
     end
 end
 
@@ -33,8 +33,8 @@ function __plexdo_refresh --description 'Populate a cache in the background'
     # Guard on the binary existing: fish reports an unknown command before the
     # redirection applies, which would scribble on the prompt during a Tab.
     set -l prog
-    if command -q plex.do
-        set prog plex.do
+    if command -q plexdo
+        set prog plexdo
     else if command -q plexdo
         set prog plexdo
     else
@@ -189,14 +189,14 @@ set -l plexdo_cmds list-libraries list-titles list-show export-titles search sta
     copy-playlist-to-user copy-watched login write-config-example
 
 # No bare filename completion anywhere; each rule opts in explicitly.
-complete -c plex.do -f
+complete -c plexdo -f
 complete -c plexdo -f
 
 function __plexdo_no_subcommand -V plexdo_cmds
     not __fish_seen_subcommand_from $plexdo_cmds
 end
 
-for prog in plex.do plexdo
+for prog in plexdo
     complete -c $prog -n __plexdo_no_subcommand -a list-libraries -d 'List all Plex libraries'
     complete -c $prog -n __plexdo_no_subcommand -a list-titles -d 'List titles in a library'
     complete -c $prog -n __plexdo_no_subcommand -a list-show -d 'List all episodes in a show'

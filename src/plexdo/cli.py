@@ -1,5 +1,5 @@
-# plex.do - a command-line interface for Plex Media Server.
-# Copyright (C) 2026 plex.do contributors
+# plexdo - a command-line interface for Plex Media Server.
+# Copyright (C) 2026 plexdo contributors
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -61,7 +61,7 @@ def _add_global_flags(
     )
     parser.add_argument(
         "-V", "--version", action="version",
-        version=f"plex.do (plexdo) {__version__}",
+        version=f"plexdo {__version__}",
         help="Show the installed version and exit.",
     )
     parser.add_argument(
@@ -88,7 +88,7 @@ def _global_flags_parent() -> argparse.ArgumentParser:
 def build_parser() -> argparse.ArgumentParser:
     """Construct and return the top-level argument parser."""
     parser = argparse.ArgumentParser(
-        prog="plex.do",
+        prog="plexdo",
         description=(
             f"Interact with a Plex Media Server via plexapi.  (version {__version__})"
         ),
@@ -107,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    """Entry point for the ``plex.do`` console script."""
+    """Entry point for the ``plexdo`` console script."""
     parser = build_parser()
     args = parser.parse_args(argv)
 

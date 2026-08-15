@@ -70,6 +70,6 @@ def resolve_identifier(
     if matches:
         return matches[0][0]
     sys.exit(
-        f"{kind.capitalize()} not found: {text!r}. Run `plex.do {list_command}` "
+        f"{kind.capitalize()} not found: {text!r}. Run `plexdo {list_command}` "
         f"to see available {kind} IDs and titles."
     )

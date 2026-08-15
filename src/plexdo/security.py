@@ -46,7 +46,7 @@ def scrub_password_argument(args: argparse.Namespace) -> None:
     if not secret:
         return
 
-    hidden = _overwrite_argv_memory("plex.do login")
+    hidden = _overwrite_argv_memory("plexdo login")
     _mask_argv_copy(secret)
 
     LOG.warning(

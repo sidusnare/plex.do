@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Bash completion for plex.do - with cached ID / name completion.
+# Bash completion for plexdo - with cached ID / name completion.
 #
-# Requires: bash 4.0+, python3 (already required by plex.do itself)
+# Requires: bash 4.0+, python3 (already required by plexdo itself)
 #
 # Installation:
-#   Single session:  source plex.do.bash-completion
-#   Permanent:       cp plex.do.bash-completion \
-#                      ~/.local/share/bash-completion/completions/plex.do
+#   Single session:  source plexdo.bash
+#   Permanent:       cp plexdo.bash \
+#                      ~/.local/share/bash-completion/completions/plexdo
 
 # ---------------------------------------------------------------------------
 # Cache helpers (15-minute TTL, written by the Python script as a side effect
@@ -14,7 +14,7 @@
 # a cache file is stale or absent)
 # ---------------------------------------------------------------------------
 
-_PLEXDO_CACHE="${HOME}/.cache/plex.do"
+_PLEXDO_CACHE="${HOME}/.cache/plexdo"
 _PLEXDO_TTL=900   # seconds (15 minutes)
 
 # Git Bash on Windows, and some minimal systems, ship "python" but not
@@ -96,7 +96,7 @@ _plexdo_cache_is_fresh() {
     (( now - mtime < _PLEXDO_TTL ))
 }
 
-# Run a plex.do sub-command in the background so its cache side-effect fires
+# Run a plexdo sub-command in the background so its cache side-effect fires
 # without blocking the completion prompt.  All output is suppressed.
 _plexdo_bg_refresh() {
     local plexdo="${words[0]}"
@@ -555,9 +555,4 @@ _plexdo_complete() {
     esac
 }
 
-complete -F _plexdo_complete plex.do
-complete -F _plexdo_complete plex_do
-
-# em dash \xe2\x80\x94 here
-
-# test \xe2\x80\x94 drift
+complete -F _plexdo_complete plexdo

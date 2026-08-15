@@ -8,7 +8,7 @@ this file in the same commit.
 
 Build `plexdo`, an installable Python package providing a command-line
 interface to Plex Media Server via the `plexapi` library, ready to publish to
-PyPI. The console script is named `plex.do` (with `plexdo` as an alias).
+PyPI. The console script is named `plexdo` (with `plexdo` as an alias).
 
 ## PROJECT LAYOUT
 
@@ -17,7 +17,7 @@ Use a src layout with setuptools and a PEP 621 `pyproject.toml`:
 ```
 pyproject.toml          setuptools backend, PEP 621 metadata, pylint config
 README.md  LICENSE  MANIFEST.in  requirements.txt  .gitignore  AI.prompt.md
-completions/plex.do.bash
+completions/plexdo.bash
 src/plexdo/
 ├── __init__.py         __version__
 ├── __main__.py         python -m plexdo
@@ -45,7 +45,7 @@ src/plexdo/
 ├── gallery.py          Spotlight.js HTML gallery
 ├── airdates.py         missing air-date estimation
 ├── security.py         argv scrubbing for --password
-├── data/plex.do.bash   completion script shipped as package data
+├── data/plexdo.bash   completion script shipped as package data
 └── commands/
     ├── __init__.py     MODULES, register_all, build_registry
     ├── libraries.py    list-libraries, list-titles, list-show, export-titles
@@ -86,8 +86,7 @@ four command modules.
 
 ### Packaging
 
-`[project.scripts]` maps both `"plex.do"` and `plexdo` to `plexdo.cli:main` -
-a dot in a console-script name is valid. Dependencies are `PlexAPI>=4.15.10`
+`[project.scripts]` has the single entry `plexdo = "plexdo.cli:main"`. Dependencies are `PlexAPI>=4.15.10`
 and `requests>=2.31`; `requires-python = ">=3.11"`. Ship the completion script
 as package data via `[tool.setuptools.package-data]` so it can be located at
 runtime through `plexdo.__file__`. `python -m build` must produce an sdist and
@@ -170,23 +169,23 @@ from plexapi.video import Episode, Movie, Show
 DateInput = Union[str, datetime.date, datetime.datetime, None]
 MediaItem = Union[Episode, Movie, Track, Photo]
 
-CONFIG_PATH          = Path("~/.local/etc/plex.do.ini").expanduser()
-CACHE_DIR            = Path("~/.cache/plex.do").expanduser()
-LOG                  = logging.getLogger("plex.do")
+CONFIG_PATH          = Path("~/.local/etc/plexdo.ini").expanduser()
+CACHE_DIR            = Path("~/.cache/plexdo").expanduser()
+LOG                  = logging.getLogger("plexdo")
 PERMISSIVE_MODE_MASK = 0o077
 CONFIG_EXAMPLE       = "...the INI template, see below..."
 ```
 
 ## CONFIGURATION
 
-`~/.local/etc/plex.do.ini`:
+`~/.local/etc/plexdo.ini`:
 
 ```ini
 [plex]
 url = http://localhost:32400
 token_path = ~/usr/tmp/.fsec/plex_token
 
-# Optional credentials used by `plex.do login`.
+# Optional credentials used by `plexdo login`.
 # The password is stored in plaintext, so keep this file mode 0600.
 # Supplying --username on the command line ignores the password below.
 # username = you@example.com
@@ -251,7 +250,7 @@ once on the top-level parser with ordinary `False` defaults, and once on an
 The SUPPRESS default is essential, not cosmetic. A subparser parses into its
 own namespace and then copies **every** attribute onto the main namespace, so
 ordinary `False` defaults on the inherited copies would silently clobber a flag
-given before the subcommand - `plex.do --json list-users` would emit a table.
+given before the subcommand - `plexdo --json list-users` would emit a table.
 With SUPPRESS the attribute only exists when the flag was actually passed, so
 whichever position it appears in wins and the other is left untouched.
 
@@ -300,7 +299,7 @@ rules once for both users and libraries; do not write the algorithm twice, or
 pylint's `duplicate-code` check will flag it. The roster is a list of
 `(numeric_id, title)` pairs, and `kind` / `list_command` only shape the
 warnings and errors, so a library miss says "Library not found ... run
-`plex.do list-libraries`" while a user miss names `list-users`.
+`plexdo list-libraries`" while a user miss names `list-users`.
 
 Rules, in order:
 
@@ -489,8 +488,8 @@ trackNumber`.
 Streams a media file to stdout for redirection or piping:
 
 ```
-plex.do read 3 12345 | mpv -
-plex.do read 3 12345 > file.mkv
+plexdo read 3 12345 | mpv -
+plexdo read 3 12345 > file.mkv
 ```
 
 Validate that the item's `librarySectionID` matches `library_id`. Warn if the
@@ -871,21 +870,21 @@ found, unsupported library type, album not found.
 ## SHELL COMPLETION
 
 Provide completions for **bash, zsh, and fish** in `completions/`, mirrored
-into `src/plexdo/data/` as package data: `plex.do.bash`, `_plex.do` (zsh
-`#compdef` convention), and `plex.do.fish`. All three share the same cache
+into `src/plexdo/data/` as package data: `plexdo.bash`, `_plexdo` (zsh
+`#compdef` convention), and `plexdo.fish`. All three share the same cache
 strategy and cover the same values, and all three depend only on `python3` -
 no `bash-completion` package, no external helpers.
 
-### bash - `completions/plex.do.bash`
+### bash - `completions/plexdo.bash`
 
 Must work **without** the `bash-completion` package: initialise from
 `COMP_WORDS` / `COMP_CWORD` directly rather than `_init_completion`, and use
 `compgen -f` rather than `_filedir`. Both are absent on many systems and produce
 a `command not found` on every Tab press.
 
-Caches live in `~/.cache/plex.do` with a 900-second TTL, checked via `stat`
+Caches live in `~/.cache/plexdo` with a 900-second TTL, checked via `stat`
 portable across Linux (`-c %Y`) and macOS (`-f %m`). When a cache is stale or
-missing, `_plexdo_bg_refresh` runs the relevant `plex.do` list command with
+missing, `_plexdo_bg_refresh` runs the relevant `plexdo` list command with
 `>/dev/null 2>&1 &` and `disown`, so completion never blocks - stale results are
 shown now and the next Tab sees fresh ones. `_plexdo_json_candidates cache field`
 reads a cache with inline Python.
@@ -943,18 +942,18 @@ must gather them all and render once; filling `COMPREPLY` inside the loop lets
 a later library discard an earlier one's matches. Clear `COMPREPLY` on entry,
 since bash does not reset it between invocations.
 
-### zsh - `completions/_plex.do`
+### zsh - `completions/_plexdo`
 
-Start with `#compdef plex.do plexdo`. Use `_arguments -C` with
+Start with `#compdef plexdo plexdo`. Use `_arguments -C` with
 `'1:command:_plexdo_commands'` and `'*::command argument:->subcmd'`, then a
 `case ${words[1]}` dispatch. Note that under `*::` zsh **rebinds `words` so
 that `words[1]` is the subcommand**, which the positional helper must assume.
 Offer descriptions via `_describe`, and sanitise `:` out of description text
 since `_describe` splits `value:description` on it.
 
-### fish - `completions/plex.do.fish`
+### fish - `completions/plexdo.fish`
 
-Use `complete -c plex.do -f` plus `-c plexdo` for the alias, gating each rule
+Use `complete -c plexdo -f` plus `-c plexdo` for the alias, gating each rule
 on `__fish_seen_subcommand_from`. Fish has no positional-index primitive, so
 write `__plexdo_positionals` / `__plexdo_at` / `__plexdo_nth` helpers that walk
 `(commandline -opc)`, skipping flags and the values consumed by options that
@@ -963,11 +962,11 @@ take one (`--m3u`, `--album`, `--sort`, `--media-type`, `--library-id`, `-l`,
 condition so they complete in either position. Emit `value\tdescription` pairs.
 | `login` | - | - | - | - | `-u`, `-p`, `-c`, `-2` |
 
-Register with `complete -F _plexdo_complete plex.do` and the same for `plex_do`.
+Register with `complete -F _plexdo_complete plexdo` and the same for `plex_do`.
 
 ## MAN PAGE
 
-`man/plex.do.1`, in roff, mirrored into `src/plexdo/data/` as package data and
+`man/plexdo.1`, in roff, mirrored into `src/plexdo/data/` as package data and
 installed by `make install` to `$(MAN_DIR)/man1`. It must document every
 command, the configuration and token formats, exit status, environment, files,
 and worked examples, and must pass `groff -man -Tutf8 -ww -z` with no warnings.
@@ -987,15 +986,36 @@ Two escapes to watch, both of which corrupt copy-pasteable examples if missed:
   shell-quoted example a reader tries to copy. Double quotes are *not*
   remapped and need no escape.
 
+## PROJECT URLS
+
+Homepage and source: `https://github.com/sidusnare/plexdo`
+Issue tracker: `https://github.com/sidusnare/plexdo/issues`
+
+These belong in `[project.urls]` (Homepage, Source, Issues), the README's
+install and Links sections, and the man page's SEE ALSO and BUGS sections.
+The repository, the distribution, the import package, the console script, the
+man page, and the completion files all share the single name `plexdo`. The
+project was once called `plex.do`; that name is retired and must not reappear
+anywhere, including in the config path (`~/.local/etc/plexdo.ini`), the cache
+directory (`~/.cache/plexdo`), or the completion filenames.
+
+There is exactly one console script. An earlier `plex.do` entry point and a
+`plex_do` completion alias existed only to work around the dot in the old
+name; both are gone.
+
+In the man page, write URLs as plain text with `.I`, not with the `.UR`/`.UE`
+macros: those emit OSC-8 hyperlink escapes that duplicate the URL wherever the
+page is piped through something that does not understand them.
+
 ## DELIVERABLES
 
 1. The `plexdo` package under `src/`, laid out as above
 2. `pyproject.toml` - PEP 621 metadata, both console scripts, package data, pylint config
 3. `README.md` - install, configuration, every command group with examples, completion setup, layout
-4. `man/plex.do.1` - the manual page
+4. `man/plexdo.1` - the manual page
 4. `LICENSE` - the full GNU GPL v3 text, `MANIFEST.in`, `requirements.txt`, `.gitignore`
 5. `Makefile` - see below
-6. `completions/plex.do.bash`, mirrored into `src/plexdo/data/`
+6. `completions/plexdo.bash`, mirrored into `src/plexdo/data/`
 7. `AI.prompt.md` - this file, at the top level of the project, containing the
    full prompt that regenerates the project including this requirement itself
 
@@ -1011,4 +1031,4 @@ builds the full parser, and asserts every module in `MODULES` still exposes
 edit has silently truncated that tail, which breaks every command in it.
 `pylint src/plexdo` scores 10.00/10, `python -m build` succeeds,
 `twine check dist/*` passes, and installing the wheel into a clean virtualenv
-gives a working `plex.do` console script.
+gives a working `plexdo` console script.

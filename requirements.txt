@@ -1,4 +1,4 @@
-# Runtime dependencies for plex.do
+# Runtime dependencies for plexdo
 # Installing the package (pip install plexdo) pulls these in automatically;
 # this file is for working from a source checkout.
 

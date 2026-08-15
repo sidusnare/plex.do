@@ -1,18 +1,18 @@
-#compdef plex.do plexdo
-# zsh completion for plex.do
+#compdef plexdo
+# zsh completion for plexdo
 #
 # Installation:
-#   Per user:    cp _plex.do ~/.local/share/zsh/site-functions/
+#   Per user:    cp _plexdo ~/.local/share/zsh/site-functions/
 #                (ensure that directory is in $fpath, then: compinit)
-#   System-wide: cp _plex.do /usr/local/share/zsh/site-functions/
+#   System-wide: cp _plexdo /usr/local/share/zsh/site-functions/
 #
 # Completion for user IDs, library IDs, rating keys, playlists, and albums is
-# read from the 15-minute cache under ~/.cache/plex.do that the list commands
+# read from the 15-minute cache under ~/.cache/plexdo that the list commands
 # populate. A stale cache is refreshed in the background so completion never
 # blocks; the values shown come from whatever is cached at that moment.
 
 (( $+functions[_plexdo_cache_dir] )) || _plexdo_cache_dir() {
-  print -r -- "${XDG_CACHE_HOME:-$HOME/.cache}/plex.do"
+  print -r -- "${XDG_CACHE_HOME:-$HOME/.cache}/plexdo"
 }
 
 # Return 0 when the cache file exists and is under 15 minutes old.
@@ -24,9 +24,9 @@ _plexdo_cache_fresh() {
   (( now - mtime < 900 ))
 }
 
-# Run a plex.do list command in the background purely for its cache side effect.
+# Run a plexdo list command in the background purely for its cache side effect.
 _plexdo_refresh() {
-  local prog=${words[1]:-plex.do}
+  local prog=${words[1]:-plexdo}
   ( "$prog" "$@" >/dev/null 2>&1 & ) 2>/dev/null
 }
 
@@ -172,7 +172,7 @@ _plexdo_commands() {
     'login:Authenticate with plex.tv and save a token'
     'write-config-example:Write a template config file'
   )
-  _describe -t commands 'plex.do command' cmds
+  _describe -t commands 'plexdo command' cmds
 }
 
 _plexdo_global_opts=(
@@ -304,7 +304,7 @@ _plexdo_subcommand() {
   esac
 }
 
-_plex.do() {
+_plexdo() {
   local curcontext="$curcontext" state line
   typeset -A opt_args
   _arguments -C $_plexdo_global_opts \
@@ -313,4 +313,4 @@ _plex.do() {
   [[ $state == subcmd ]] && _plexdo_subcommand
 }
 
-_plex.do "$@"
+_plexdo "$@"

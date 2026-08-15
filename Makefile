@@ -1,4 +1,4 @@
-# Makefile for plex.do (plexdo)
+# Makefile for plexdo (plexdo)
 #
 # Common targets:
 #   make install              install the package and the bash completion
@@ -16,10 +16,10 @@ PYTHON        ?= python3
 PIP           ?= $(PYTHON) -m pip
 PIP_FLAGS     ?=
 PACKAGE       := plexdo
-MAN_PAGE        := man/plex.do.1
-BASH_COMPLETION := completions/plex.do.bash
-ZSH_COMPLETION  := completions/_plex.do
-FISH_COMPLETION := completions/plex.do.fish
+MAN_PAGE        := man/plexdo.1
+BASH_COMPLETION := completions/plexdo.bash
+ZSH_COMPLETION  := completions/_plexdo
+FISH_COMPLETION := completions/plexdo.fish
 
 # Per-user by default; PREFIX switches to system-wide locations.
 XDG_DATA_HOME   ?= $(HOME)/.local/share
@@ -36,10 +36,10 @@ ZSH_COMPLETION_DIR  ?= $(PREFIX)/share/zsh/site-functions
 FISH_COMPLETION_DIR ?= $(PREFIX)/share/fish/vendor_completions.d
 endif
 
-MAN_TARGET  := $(DESTDIR)$(MAN_DIR)/man1/plex.do.1
-BASH_TARGET := $(DESTDIR)$(COMPLETION_DIR)/plex.do
-ZSH_TARGET  := $(DESTDIR)$(ZSH_COMPLETION_DIR)/_plex.do
-FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plex.do.fish
+MAN_TARGET  := $(DESTDIR)$(MAN_DIR)/man1/plexdo.1
+BASH_TARGET := $(DESTDIR)$(COMPLETION_DIR)/plexdo
+ZSH_TARGET  := $(DESTDIR)$(ZSH_COMPLETION_DIR)/_plexdo
+FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plexdo.fish
 
 .PHONY: help install uninstall reinstall develop install-completion \
         uninstall-completion install-completion-bash install-completion-zsh \
@@ -50,7 +50,7 @@ FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plex.do.fish
 # ---------------------------------------------------------------------------
 
 help:
-	@echo "plex.do - available targets:"
+	@echo "plexdo - available targets:"
 	@echo ""
 	@echo "  install               pip install the package + install completion"
 	@echo "  uninstall             pip uninstall the package + remove completion"
@@ -80,8 +80,8 @@ help:
 install: install-completion install-man
 	$(PIP) install $(PIP_FLAGS) .
 	@echo ""
-	@echo "Installed. Try: plex.do --help"
-	@echo "Then:          plex.do write-config-example && plex.do login"
+	@echo "Installed. Try: plexdo --help"
+	@echo "Then:          plexdo write-config-example && plexdo login"
 
 develop: install-completion install-man
 	$(PIP) install $(PIP_FLAGS) -e ".[dev]"
@@ -181,12 +181,12 @@ print('smoke: %d commands across %d modules' % (len(h), len(MODULES)))"
 # wheel. Source is also required to be plain ASCII.
 check-assets:
 	@fail=0; \
-	for f in plex.do.bash _plex.do plex.do.fish; do \
+	for f in plexdo.bash _plexdo plexdo.fish; do \
 		cmp -s "completions/$$f" "src/$(PACKAGE)/data/$$f" || { \
 			echo "stale mirror: src/$(PACKAGE)/data/$$f differs from completions/$$f" >&2; fail=1; }; \
 	done; \
-	cmp -s "$(MAN_PAGE)" "src/$(PACKAGE)/data/plex.do.1" || { \
-		echo "stale mirror: src/$(PACKAGE)/data/plex.do.1 differs from $(MAN_PAGE)" >&2; fail=1; }; \
+	cmp -s "$(MAN_PAGE)" "src/$(PACKAGE)/data/plexdo.1" || { \
+		echo "stale mirror: src/$(PACKAGE)/data/plexdo.1 differs from $(MAN_PAGE)" >&2; fail=1; }; \
 	for f in $$(find src completions man -type f ! -path "*egg-info*" ! -name "*.pyc") \
 		         Makefile pyproject.toml; do \
 		if LC_ALL=C grep -qP "[^\x00-\x7F]" "$$f" 2>/dev/null; then \

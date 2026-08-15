@@ -1,4 +1,4 @@
-# plex.do
+# plexdo
 
 A command-line interface for Plex Media Server built on
 [plexapi](https://github.com/pkkid/python-plexapi). It builds and copies
@@ -12,8 +12,15 @@ library scans.
 pip install plexdo
 ```
 
-From a source checkout, `make install` installs the package and the bash
-completion together:
+From a source checkout:
+
+```bash
+git clone https://github.com/sidusnare/plexdo.git
+cd plexdo
+```
+
+`make install` installs the package, the shell completions, and the man page
+together:
 
 ```bash
 make install                     # completion -> ~/.local/share/bash-completion/completions
@@ -29,22 +36,22 @@ make check                       # lint, build, and validate the distribution
 make help                        # all targets, and the completion path in use
 ```
 
-Both `plex.do` and `plexdo` are installed as console scripts; they are the
+Both `plexdo` and `plexdo` are installed as console scripts; they are the
 same program.
 
 ## Getting started
 
 ```bash
-plex.do write-config-example        # writes ~/.local/etc/plex.do.ini (mode 0600)
-plex.do login                       # prompts, saves a token to token_path
-plex.do list-libraries
+plexdo write-config-example        # writes ~/.local/etc/plexdo.ini (mode 0600)
+plexdo login                       # prompts, saves a token to token_path
+plexdo list-libraries
 ```
 
 `write-config-example --help` prints the exact template it would write.
 
 ### Configuration
 
-`~/.local/etc/plex.do.ini`:
+`~/.local/etc/plexdo.ini`:
 
 ```ini
 [plex]
@@ -53,11 +60,11 @@ url = http://localhost:32400
 # Values may contain environment variables as $VAR or ${VAR}, and ~ for your
 # home directory. XDG_RUNTIME_DIR is a private, user-only tmpfs on most Linux
 # systems, which suits a secret -- but it is cleared at logout, so you will
-# need to run `plex.do login` again after each reboot. Point token_path
+# need to run `plexdo login` again after each reboot. Point token_path
 # somewhere persistent if you would rather not.
 token_path = $XDG_RUNTIME_DIR/.plex.token
 
-# Optional credentials used by `plex.do login`.
+# Optional credentials used by `plexdo login`.
 # The password is stored in plaintext, so keep this file mode 0600.
 # Supplying --username on the command line ignores the password below.
 # username = you@example.com
@@ -68,7 +75,7 @@ token_path = $XDG_RUNTIME_DIR/.plex.token
 
 A Plex server refuses an admin-issued token for a user it has shared nothing
 with, so acting on that user needs their own credentials. Add a section named
-for their user ID (from `plex.do list-users`):
+for their user ID (from `plexdo list-users`):
 
 ```ini
 [99]
@@ -114,18 +121,18 @@ printed if either is readable by group or other.
 
 Every command accepts `-f/--format`, `-v/--verbose`, `--debug`, `--dry-run`,
 and `-V/--version`, and they may be given either before or after the command
-name - `plex.do --json list-users` and `plex.do list-users --json` are
+name - `plexdo --json list-users` and `plexdo list-users --json` are
 equivalent. Logging always goes to stderr, so machine-readable output on stdout
 is safe to pipe.
 
 ### Output formats
 
 ```bash
-plex.do list-libraries                  # aligned table (default)
-plex.do list-libraries --json           # shorthand for -f json
-plex.do -f yaml list-libraries
-plex.do list-titles 3 -f csv > titles.csv
-plex.do list-users -f clixml            # PowerShell Import-Clixml
+plexdo list-libraries                  # aligned table (default)
+plexdo list-libraries --json           # shorthand for -f json
+plexdo -f yaml list-libraries
+plexdo list-titles 3 -f csv > titles.csv
+plexdo list-users -f clixml            # PowerShell Import-Clixml
 ```
 
 | format | notes |
@@ -138,12 +145,12 @@ plex.do list-users -f clixml            # PowerShell Import-Clixml
 
 `-V/--version` prints the installed version, which also appears in `--help`.
 Anywhere a **library** is required you may pass either the numeric library ID
-or its title, so `plex.do list-titles 3` and `plex.do list-titles "TV Shows"`
+or its title, so `plexdo list-titles 3` and `plexdo list-titles "TV Shows"`
 are equivalent. The same applies to `--library-id` on `search` and `-l` on
 `copy-watched`.
 
 Anywhere a user is required you may pass either the numeric user ID or the
-user's title, so `plex.do list-playlists 7` and `plex.do list-playlists Alice`
+user's title, so `plexdo list-playlists 7` and `plexdo list-playlists Alice`
 are equivalent. `0` always means the admin account. Titles match exactly first,
 then case-insensitively. If a value is simultaneously one user's ID and another
 user's title the ID wins, with a warning naming the user that was skipped; if
@@ -166,9 +173,9 @@ identical rules apply to library IDs and titles.
 ### Building playlists
 
 ```bash
-plex.do build-interleaved "Mixed Run" 101 202       # round-robin across shows
-plex.do build-chronological "By Air Date" 101 202   # date-sorted, shows and movies
-plex.do build-randomize 0 "Source" "Shuffled"       # secrets-backed shuffle
+plexdo build-interleaved "Mixed Run" 101 202       # round-robin across shows
+plexdo build-chronological "By Air Date" 101 202   # date-sorted, shows and movies
+plexdo build-randomize 0 "Source" "Shuffled"       # secrets-backed shuffle
 ```
 
 Playlists are always built fully in memory, validated, previewed, and then
@@ -187,10 +194,10 @@ impossible.
 ### Copying and modifying
 
 ```bash
-plex.do copy-playlist-to-user 0 "Mix" 7 "Mix" -o
-plex.do copy-playlist-all-users 0 "Mix"          # skips the source user
-plex.do append-playlist 0 "Mix" 55 56 57
-plex.do remove-playlist 0 "Mix"
+plexdo copy-playlist-to-user 0 "Mix" 7 "Mix" -o
+plexdo copy-playlist-all-users 0 "Mix"          # skips the source user
+plexdo append-playlist 0 "Mix" 55 56 57
+plexdo remove-playlist 0 "Mix"
 ```
 
 A user with no libraries shared to them cannot be acted on, even by the server
@@ -223,10 +230,10 @@ Without `-o/--overwrite`, a copy that collides with both `Mix` and
 ### Watched-state sync
 
 ```bash
-plex.do copy-watched 7 9 --dry-run     # always preview a full-library sync first
-plex.do copy-watched 7 9 -1            # one-way: only user 9 is modified
-plex.do copy-watched 7 9 -l 3          # a single library
-plex.do copy-watched 7 9 --unwatch     # propagate unwatched instead
+plexdo copy-watched 7 9 --dry-run     # always preview a full-library sync first
+plexdo copy-watched 7 9 -1            # one-way: only user 9 is modified
+plexdo copy-watched 7 9 -l 3          # a single library
+plexdo copy-watched 7 9 --unwatch     # propagate unwatched instead
 ```
 
 By default the most recent `lastViewedAt` wins. With `--unwatch`, an item
@@ -236,9 +243,9 @@ the earliest `lastViewedAt` wins.
 ### Exporting
 
 ```bash
-plex.do export-playlist 0 "Mix" ~/mix.m3u
-plex.do export-titles 3 ~/movies.m3u --sort date
-plex.do export-titles 5 ~/photos.html --album "Iceland 2019"
+plexdo export-playlist 0 "Mix" ~/mix.m3u
+plexdo export-titles 3 ~/movies.m3u --sort date
+plexdo export-titles 5 ~/photos.html --album "Iceland 2019"
 ```
 
 M3U files contain **Plex server filesystem paths**, not HTTP URLs, so they are
@@ -250,9 +257,9 @@ point, a Windows drive letter - `-p/--prefix` swaps the server's library root
 for one that makes sense there:
 
 ```bash
-plex.do export-titles 3 ~/tv.m3u --prefix '\\NAS\media'
-plex.do export-playlist 0 "Mix" ~/mix.m3u -p /Volumes/plex
-plex.do export-titles 5 ~/photos.html -p smb://nas/pix
+plexdo export-titles 3 ~/tv.m3u --prefix '\\NAS\media'
+plexdo export-playlist 0 "Mix" ~/mix.m3u -p /Volumes/plex
+plexdo export-titles 5 ~/photos.html -p smb://nas/pix
 ```
 
 ```
@@ -269,17 +276,17 @@ to the photo gallery. Without it, exports keep the server's own paths.
 ### Streaming
 
 ```bash
-plex.do read 3 12345 | mpv -
-plex.do read 3 12345 > episode.mkv
+plexdo read 3 12345 | mpv -
+plexdo read 3 12345 > episode.mkv
 ```
 
 ### Status
 
 ```bash
-plex.do status                      # everything, as a set of tables
-plex.do status --section sessions   # just one section
-plex.do status -f json              # nested object, all sections
-plex.do status --section tasks -f csv
+plexdo status                      # everything, as a set of tables
+plexdo status --section sessions   # just one section
+plexdo status -f json              # nested object, all sections
+plexdo status --section tasks -f csv
 ```
 
 Reports server identity (name, version, machine ID, platform, platform
@@ -295,16 +302,16 @@ whole report. `--format csv` and `--format clixml` are flat by nature and need
 ### Server management
 
 ```bash
-plex.do rescan --status      # active scan jobs and progress
-plex.do rescan 3             # scan one library for new files
-plex.do rescan 3 --now       # cancel pending scans first
+plexdo rescan --status      # active scan jobs and progress
+plexdo rescan 3             # scan one library for new files
+plexdo rescan 3 --now       # cancel pending scans first
 ```
 
 ## Shell completion
 
 Completion is provided for **bash, zsh, and fish**. All three cover user and library IDs
 *and* their titles, rating keys, playlist names and keys, and photo album
-names, reading a 15-minute cache under `~/.cache/plex.do` that the list
+names, reading a 15-minute cache under `~/.cache/plexdo` that the list
 commands populate as a side effect. Numeric IDs are shown with the title they
 belong to - `7  (Alice)`, `101  (Breaking Bad - Pilot)` - and only the ID is
 inserted once you narrow to one. When a cache is stale it refreshes in the
@@ -321,9 +328,9 @@ make uninstall-completion
 
 | shell | default destination |
 | --- | --- |
-| bash | `~/.local/share/bash-completion/completions/plex.do` |
-| zsh | `~/.local/share/zsh/site-functions/_plex.do` |
-| fish | `~/.config/fish/completions/plex.do.fish` |
+| bash | `~/.local/share/bash-completion/completions/plexdo` |
+| zsh | `~/.local/share/zsh/site-functions/_plexdo` |
+| fish | `~/.config/fish/completions/plexdo.fish` |
 
 For zsh the directory must be in your `$fpath` before `compinit` runs:
 
@@ -335,7 +342,7 @@ autoload -Uz compinit && compinit
 Installing from PyPI rather than a checkout, the script ships as package data:
 
 ```bash
-source "$(python3 -c 'import plexdo,pathlib;print(pathlib.Path(plexdo.__file__).parent/"data/plex.do.bash")')"
+source "$(python3 -c 'import plexdo,pathlib;print(pathlib.Path(plexdo.__file__).parent/"data/plexdo.bash")')"
 ```
 
 The bash script needs no `bash-completion` package - only bash 4+ and
@@ -373,8 +380,8 @@ python -m build            # sdist + wheel
 A full man page ships with the project and is installed by `make install`:
 
 ```bash
-man plex.do
-man -l man/plex.do.1     # straight from a source checkout
+man plexdo
+man -l man/plexdo.1     # straight from a source checkout
 ```
 
 It documents every command, the configuration and token file formats, exit
@@ -390,7 +397,7 @@ Linux, macOS, and Windows are all supported.
 | **macOS** | Completion scripts fall back to BSD `stat -f %m`, and the bash script avoids `mapfile` so it works with the bash 3.2 that macOS still ships. `make` uses only portable `install -d` / `install -m`. |
 | **Windows** | Tables fall back to ASCII box characters when the console encoding cannot represent Unicode ones (a legacy cp1252 console would otherwise abort with `UnicodeEncodeError`), and characters a title contains but the console cannot render are substituted rather than crashing. POSIX permission checks and `chmod` are skipped, since Windows uses ACLs and `os.stat` reports a synthetic mode that would trip the check on every run. |
 
-On Windows, prefer the `plexdo` alias over `plex.do`: both are installed, but a
+On Windows, prefer the `plexdo` alias over `plexdo`: both are installed, but a
 name containing a dot interacts awkwardly with `PATHEXT` resolution in some
 shells. Config and cache live under `%USERPROFILE%\.local\etc` and
 `%USERPROFILE%\.cache` respectively - functional, though not the native
@@ -405,6 +412,11 @@ Use the config file or the interactive prompt instead.
 
 The bash, zsh, and fish completions all fall back to `python` where `python3`
 is absent, which matters under Git Bash.
+
+## Links
+
+- Homepage and source: <https://github.com/sidusnare/plexdo>
+- Issue tracker: <https://github.com/sidusnare/plexdo/issues>
 
 ## License
 

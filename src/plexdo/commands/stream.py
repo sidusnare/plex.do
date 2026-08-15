@@ -20,7 +20,7 @@ def _stream_to_stdout(url: str, label: str) -> None:
     if sys.stdout.isatty():
         LOG.warning(
             "stdout is a terminal - pipe into a player, e.g.: "
-            "plex.do read <lib> <key> | mpv -"
+            "plexdo read <lib> <key> | mpv -"
         )
     LOG.info("Streaming: %s", label)
     try:
@@ -98,7 +98,7 @@ def register(
         "read", parents=parents,
         help=(
             "Stream a media file to stdout. Pipe into a player: "
-            "plex.do read <lib> <key> | mpv -"
+            "plexdo read <lib> <key> | mpv -"
         ),
     )
     parser.add_argument(

@@ -101,7 +101,7 @@ def load_config() -> configparser.ConfigParser:
     if not CONFIG_PATH.exists():
         sys.exit(
             f"Config not found: {CONFIG_PATH}\n"
-            "Run `plex.do write-config-example` to create a template."
+            "Run `plexdo write-config-example` to create a template."
         )
     check_file_permissions(CONFIG_PATH, "config file")
     # interpolation=None: a password containing "%" would otherwise raise
@@ -124,14 +124,14 @@ def read_token(token_path_raw: str, username: Optional[str] = None) -> str:
     if not token_path.exists():
         sys.exit(
             f"Token file not found: {token_path}\n"
-            "Run `plex.do login` to authenticate and create it."
+            "Run `plexdo login` to authenticate and create it."
         )
     check_file_permissions(token_path, "token file")
     token = admin_token(token_path, username)
     if not token:
         sys.exit(
             f"No admin token in {token_path}.\n"
-            "Run `plex.do login` to authenticate, or set [plex] username to "
+            "Run `plexdo login` to authenticate, or set [plex] username to "
             "the account whose token should be used."
         )
     LOG.debug("Admin token loaded from %s", token_path)

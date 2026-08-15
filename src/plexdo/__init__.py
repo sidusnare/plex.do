@@ -1,5 +1,5 @@
-# plex.do - a command-line interface for Plex Media Server.
-# Copyright (C) 2026 plex.do contributors
+# plexdo - a command-line interface for Plex Media Server.
+# Copyright (C) 2026 plexdo contributors
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -16,11 +16,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""plex.do - a command-line interface for Plex Media Server.
+"""plexdo - a command-line interface for Plex Media Server.
 
-The public entry point is :func:`plexdo.cli.main`, exposed by the ``plex.do``
+The public entry point is :func:`plexdo.cli.main`, exposed by the ``plexdo``
 console script.
 """
 
-__version__ = "1.0.14"
+__version__ = "1.1.0"
 __all__ = ["__version__"]
