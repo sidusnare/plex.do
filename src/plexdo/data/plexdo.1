@@ -1,7 +1,7 @@
 .\" Man page for plexdo (plexdo).
 .\" Regenerate or edit alongside AI.prompt.md; the .TH version must match
 .\" __version__ in src/plexdo/__init__.py.
-.TH PLEXDO 1 "2026-08-14" "plexdo 1.1.0" "User Commands"
+.TH PLEXDO 1 "2026-08-14" "plexdo 1.1.6" "User Commands"
 .
 .SH NAME
 plexdo \- command\-line interface for Plex Media Server
@@ -282,6 +282,12 @@ warned about. Interpolation is disabled, so a password may contain
 .B %
 freely.
 .PP
+.B cache_dir
+in the
+.B [plex]
+section moves the completion cache; it defaults to the platform location shown
+under FILES, and the shell completions honour the same setting.
+.PP
 A section named for a numeric user ID holds that user\(aqs credentials. They are
 used only when the server refuses the admin\-issued token for that user, which
 happens when nothing has been shared with them.
@@ -319,8 +325,9 @@ last is saved, so the login happens once rather than on every run.
 Completions are provided for
 .BR bash ,
 .BR zsh ,
-and
 .BR fish ,
+and
+.BR pwsh ,
 covering user and library IDs and titles, rating keys, playlist names and
 keys, and photo album names. Numeric IDs are shown with the title they belong
 to.
@@ -348,18 +355,27 @@ a name collision refused without \fB\-\-overwrite\fR, or an invalid argument.
 .SH ENVIRONMENT
 .TP
 .B XDG_RUNTIME_DIR
-Referenced by the default \fItoken_path\fR. It is a private, user\-only tmpfs
+Referenced by the default POSIX \fItoken_path\fR. It is a private, user\-only tmpfs
 on most Linux systems, which suits a secret, but it is cleared at logout: you
 will need to run \fBplexdo login\fR again after a reboot. Point
 \fItoken_path\fR somewhere persistent to avoid that.
 .TP
 .B XDG_CACHE_HOME
-Overrides the location of the completion cache.
+Overrides the location of the completion cache on Linux and macOS.
+.TP
+.B LOCALAPPDATA
+On Windows, the parent of the configuration and cache directories.
+.B APPDATA
+is used when it is unset.
+.TP
+.B TEMP
+Referenced by the default Windows \fItoken_path\fR.
 .TP
 .B NO_COLOR
 Not used; output is never coloured.
 .
 .SH FILES
+Paths follow the platform. On Linux and macOS:
 .TP
 .I ~/.local/etc/plexdo.ini
 Configuration.
@@ -368,6 +384,18 @@ Configuration.
 Default token store, mode 0600.
 .TP
 .I ~/.cache/plexdo/
+Completion cache.
+.PP
+On Windows:
+.TP
+.I %LOCALAPPDATA%\ePlexDo\eplexdo.ini
+Configuration.
+.TP
+.I %TEMP%\eplexdo.token
+Default token store. Note that this directory is not protected by file
+permissions and Windows may clear it.
+.TP
+.I %LOCALAPPDATA%\ePlexDo\eCache
 Completion cache.
 .
 .SH EXAMPLES
@@ -438,6 +466,10 @@ Project homepage and source:
 Further documentation:
 .B README.md
 in the source distribution.
+.
+.SH AUTHORS
+Written by SidusNare. See the project homepage for the full list of
+contributors.
 .
 .SH BUGS
 Report issues at

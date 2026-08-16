@@ -14,7 +14,33 @@
 # a cache file is stale or absent)
 # ---------------------------------------------------------------------------
 
-_PLEXDO_CACHE="${HOME}/.cache/plexdo"
+# Resolved on first use rather than at source time: it reads the config file
+# to honour [plex] cache_dir, and spawning python for every new shell would be
+# a noticeable startup cost.
+_PLEXDO_CACHE=""
+
+_plexdo_resolve_cache() {
+    "$(_plexdo_python)" - << 'PYCACHE' 2>/dev/null
+import configparser, os
+from pathlib import Path
+if os.name == "nt":
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+    app = Path(base) / "PlexDo" if base else Path.home() / "AppData/Local/PlexDo"
+    cfg_path, default = app / "plexdo.ini", app / "Cache"
+else:
+    cfg_path = Path("~/.local/etc/plexdo.ini").expanduser()
+    default = Path("~/.cache/plexdo").expanduser()
+value = ""
+if cfg_path.exists():
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(cfg_path, encoding="utf-8")
+        value = (parser.get("plex", "cache_dir", fallback="") or "").strip()
+    except Exception:
+        value = ""
+print(Path(os.path.expandvars(value)).expanduser() if value else default)
+PYCACHE
+}
 _PLEXDO_TTL=900   # seconds (15 minutes)
 
 # Git Bash on Windows, and some minimal systems, ship "python" but not

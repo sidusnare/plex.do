@@ -1,5 +1,5 @@
 # plexdo - a command-line interface for Plex Media Server.
-# Copyright (C) 2026 plexdo contributors
+# Copyright (C) 2026 SidusNare
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free

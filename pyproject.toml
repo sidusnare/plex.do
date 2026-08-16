@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plexdo"
-version = "1.1.0"
+version = "1.1.6"
 description = "A command-line interface for Plex Media Server: playlists, exports, watched-state sync, and library management."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-authors = [{ name = "plexdo contributors" }]
+authors = [{ name = "SidusNare" }]
 keywords = ["plex", "plexapi", "cli", "playlist", "m3u", "media-server"]
 
 classifiers = [
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Video",
     "Topic :: Utilities",
 ]
@@ -35,7 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pylint>=3.0", "build>=1.0", "twine>=5.0"]
+dev = ["pylint>=3.0", "build>=1.0", "twine>=5.0", "pytest>=8.0", "PyYAML>=6.0", "vulture>=2.11"]
 
 [project.urls]
 Homepage = "https://github.com/sidusnare/plexdo"
@@ -49,7 +50,13 @@ plexdo = "plexdo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-plexdo = ["data/plexdo.bash", "data/_plexdo", "data/plexdo.fish", "data/plexdo.1"]
+plexdo = ["py.typed", "data/plexdo.bash", "data/_plexdo", "data/plexdo.fish",
+          "data/plexdo.ps1", "data/plexdo.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-q"
 
 [tool.pylint.main]
 py-version = "3.11"

@@ -44,11 +44,13 @@ def check_file_permissions(path: Path, label: str) -> None:
 
 
 def _expand_environment(cfg: configparser.ConfigParser) -> None:
-    """Expand $VAR and ${VAR} in every [plex] value, in place.
+    """Expand environment variables in every [plex] value, in place.
 
-    os.path.expandvars leaves an unset variable as literal text, which would
+    os.path.expandvars follows the platform: $VAR and ${VAR} everywhere, plus
+    %VAR% on Windows. It leaves an unset variable as literal text, which would
     surface later as a baffling "no such file" for a path like
-    "$XDG_RUNTIME_DIR/.plex.token", so an unresolved name is warned about here.
+    "$XDG_RUNTIME_DIR/.plex.token", so an unresolved name is warned about here
+    in whichever spelling the platform accepts.
     """
     if not cfg.has_section("plex"):
         return
@@ -56,10 +58,14 @@ def _expand_environment(cfg: configparser.ConfigParser) -> None:
         expanded = os.path.expandvars(raw)
         if expanded != raw:
             LOG.debug("Expanded environment variables in [plex] %s", key)
-        for name in re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", expanded):
+        unresolved = re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", expanded)
+        if os.name == "nt":
+            unresolved += re.findall(r"%([A-Za-z_][A-Za-z0-9_]*)%", expanded)
+        for name in unresolved:
             LOG.warning(
-                "[plex] %s references $%s, which is not set; leaving it "
-                "literal. Set it, or use an absolute path in %s.",
+                "[plex] %s references the environment variable %s, which is "
+                "not set; leaving it literal. Set it, or use an absolute path "
+                "in %s.",
                 key, name, CONFIG_PATH,
             )
         cfg.set("plex", key, expanded)

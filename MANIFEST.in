@@ -6,3 +6,5 @@ include requirements.txt
 include AI.prompt.md
 recursive-include completions *
 recursive-include src/plexdo/data *
+recursive-include tests *.py
+include CHANGELOG.md CONTRIBUTING.md SECURITY.md

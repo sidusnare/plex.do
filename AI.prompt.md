@@ -124,7 +124,7 @@ Two functions where one will do is a smell worth removing - `mapper_for` and
 
 ## GENERAL REQUIREMENTS
 
-- Python 3.11+
+- Python 3.11 through 3.14
 - Fully type-annotate every function, parameter, and return type
 - Must pass pylint >= 9.5 (target 10.0) across the whole package
 - Follow the Google Python style guide; small, single-purpose functions
@@ -369,6 +369,15 @@ and raises 401 for ordinary shared users. Every `user_id` help string must
 document `0 = admin`.
 
 ## COMPLETION CACHE
+
+The directory comes from `cache.cache_dir()`: `[plex] cache_dir` when set,
+otherwise the platform default. The config is only consulted when the file
+exists, so this works before `plexdo login` has ever run. The generated
+template carries the platform default as a commented `cache_dir` line, and all
+three completions resolve the same setting -- memoised on first use, since
+reading the config through python at shell-startup time would be a noticeable
+cost. Leaving the completions on a hardcoded path would let a custom
+`cache_dir` silently disable tab completion.
 
 `write_cache(name, data)` writes JSON atomically (`.tmp` then `Path.replace`)
 into `CACHE_DIR`, silently swallowing `OSError`. Called as a side effect, before
@@ -777,6 +786,15 @@ that is invisible when developing on Linux:
   only in the printers - never in `clean_text`, which feeds title matching, where
   mangling `Renee` to `Ren?e` would break comparisons against real Plex data.
   JSON output needs no equivalent: `json.dumps` escapes non-ASCII by default.
+- **Default paths.** `constants.default_paths(is_windows, env)` returns the
+  config path, cache directory, and default `token_path` for the platform.
+  Windows has no XDG layout and a dotted directory in the user profile is not
+  where a Windows user looks, so both live under `%LOCALAPPDATA%\PlexDo` and
+  the token defaults to `%TEMP%\plexdo.token`, with `APPDATA` as a fallback.
+  Take the flag and the environment as arguments rather than reading `os.name`
+  inside, so the branch is testable from either platform. The three shell
+  completions must resolve the same cache location, keying on `LOCALAPPDATA`,
+  or completion silently stops working under Git Bash.
 - **Permission checks.** `check_file_permissions` must return early when
   `os.name == "nt"`. Windows has no POSIX mode bits; `os.stat` synthesises
   `0o666`, so the check would fire on every run advising a `chmod` that cannot
@@ -869,7 +887,7 @@ found, unsupported library type, album not found.
 
 ## SHELL COMPLETION
 
-Provide completions for **bash, zsh, and fish** in `completions/`, mirrored
+Provide completions for **bash, zsh, fish, and PowerShell** in `completions/`, mirrored
 into `src/plexdo/data/` as package data: `plexdo.bash`, `_plexdo` (zsh
 `#compdef` convention), and `plexdo.fish`. All three share the same cache
 strategy and cover the same values, and all three depend only on `python3` -
@@ -942,6 +960,19 @@ must gather them all and render once; filling `COMPREPLY` inside the loop lets
 a later library discard an earlier one's matches. Clear `COMPREPLY` on entry,
 since bash does not reset it between invocations.
 
+### PowerShell - `completions/plexdo.ps1`
+
+`Register-ArgumentCompleter -Native -CommandName plexdo`. Needs no external
+interpreter: `ConvertFrom-Json` reads the cache and the ini is parsed with a
+line loop. Return `CompletionResult` objects so the ID is inserted while the
+title shows as the tooltip, and quote values containing spaces.
+
+Two PowerShell traps that parse cleanly and fail at runtime: a range of
+`0..-1` **wraps** and yields the whole array, so stripping the word being
+completed from a single-token list needs an explicit empty-array case; and a
+parenthesised `if` is not a valid argument expression, so bind it to a
+variable before passing it to a function.
+
 ### zsh - `completions/_plexdo`
 
 Start with `#compdef plexdo plexdo`. Use `_arguments -C` with
@@ -1006,6 +1037,41 @@ name; both are gone.
 In the man page, write URLs as plain text with `.I`, not with the `.UR`/`.UE`
 macros: those emit OSC-8 hyperlink escapes that duplicate the URL wherever the
 page is piped through something that does not understand them.
+
+## TESTS
+
+`tests/` holds a pytest suite that must pass in `make check`. It covers the
+project's own decision logic and never touches a network: the fixtures in
+`conftest.py` stand in for plexapi objects.
+
+What is worth testing, because a regression there is silent rather than loud:
+the four output serialisers round-tripping through real parsers; table
+alignment under double-width characters and the ASCII fallback for consoles
+that cannot encode box glyphs; identifier resolution including the case where
+a value is both one entry's ID and another's title; the playlist overwrite
+guard performing no server calls when it refuses; watched-state winner
+selection in both directions, including that an undated state never wins; path
+rewriting picking the longest matching library root; the token store reading a
+legacy bare-token file; and that global flags survive being given before the
+subcommand.
+
+Two behaviours the tests pin down that are easy to get backwards: two fully
+played states need no sync at all, so a "latest wins" test must use states that
+actually differ; and `format_duration(None)` is empty while
+`format_duration(0)` is "0:00", because unknown and zero are different things.
+
+## PUBLISHING CHECKLIST
+
+Beyond the code: `py.typed` (the package is fully annotated, and without the
+marker none of it reaches downstream users), `CHANGELOG.md`, `CONTRIBUTING.md`,
+`SECURITY.md`, `.gitattributes`, a CI workflow covering Python 3.11-3.13 plus
+a job that parses all three completions and lints the man page, and an AUTHORS
+section in the man page.
+
+Attribution is `SidusNare`, in `[project.authors]`, the GPL copyright line of
+`__init__.py`, `__main__.py`, and `cli.py`, and the man page AUTHORS section.
+No email is published; PEP 621 allows a name alone, and the address would be
+public on PyPI.
 
 ## DELIVERABLES
 

@@ -11,8 +11,39 @@
 # populate. A stale cache is refreshed in the background so completion never
 # blocks; the values shown come from whatever is cached at that moment.
 
+# Some systems ship "python" but not "python3".
+_plexdo_python() {
+  if (( $+commands[python3] )); then print -r -- python3; else print -r -- python; fi
+}
+
 (( $+functions[_plexdo_cache_dir] )) || _plexdo_cache_dir() {
-  print -r -- "${XDG_CACHE_HOME:-$HOME/.cache}/plexdo"
+  # Memoised: this reads the config file to honour [plex] cache_dir, so it
+  # should not run once per completion candidate.
+  if [[ -z $_plexdo_cache_resolved ]]; then
+    typeset -g _plexdo_cache_resolved
+    _plexdo_cache_resolved="$("$(_plexdo_python)" - <<'PYCACHE' 2>/dev/null
+import configparser, os
+from pathlib import Path
+if os.name == "nt":
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+    app = Path(base) / "PlexDo" if base else Path.home() / "AppData/Local/PlexDo"
+    cfg_path, default = app / "plexdo.ini", app / "Cache"
+else:
+    cfg_path = Path("~/.local/etc/plexdo.ini").expanduser()
+    default = Path("~/.cache/plexdo").expanduser()
+value = ""
+if cfg_path.exists():
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(cfg_path, encoding="utf-8")
+        value = (parser.get("plex", "cache_dir", fallback="") or "").strip()
+    except Exception:
+        value = ""
+print(Path(os.path.expandvars(value)).expanduser() if value else default)
+PYCACHE
+)"
+  fi
+  print -r -- "$_plexdo_cache_resolved"
 }
 
 # Return 0 when the cache file exists and is under 15 minutes old.

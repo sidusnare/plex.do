@@ -51,7 +51,20 @@ plexdo list-libraries
 
 ### Configuration
 
-`~/.local/etc/plexdo.ini`:
+The configuration file lives where the platform expects it:
+
+| | configuration | completion cache | default `token_path` |
+| --- | --- | --- | --- |
+| Linux, macOS | `~/.local/etc/plexdo.ini` | `~/.cache/plexdo` | `$XDG_RUNTIME_DIR/.plex.token` |
+| Windows | `%LOCALAPPDATA%\PlexDo\plexdo.ini` | `%LOCALAPPDATA%\PlexDo\Cache` | `%TEMP%\plexdo.token` |
+
+`cache_dir` in the `[plex]` section moves the completion cache anywhere you
+like; the platform default is written into the template as a comment, and the
+shell completions read the same setting.
+
+`plexdo write-config-example` writes to the right one for you, and its
+`--help` prints the exact template, with the notes that apply to your
+platform.
 
 ```ini
 [plex]
@@ -309,7 +322,7 @@ plexdo rescan 3 --now       # cancel pending scans first
 
 ## Shell completion
 
-Completion is provided for **bash, zsh, and fish**. All three cover user and library IDs
+Completion is provided for **bash, zsh, fish, and PowerShell**. All three cover user and library IDs
 *and* their titles, rating keys, playlist names and keys, and photo album
 names, reading a 15-minute cache under `~/.cache/plexdo` that the list
 commands populate as a side effect. Numeric IDs are shown with the title they
@@ -331,6 +344,7 @@ make uninstall-completion
 | bash | `~/.local/share/bash-completion/completions/plexdo` |
 | zsh | `~/.local/share/zsh/site-functions/_plexdo` |
 | fish | `~/.config/fish/completions/plexdo.fish` |
+| PowerShell | `~/.local/share/powershell/Completions/plexdo.ps1` |
 
 For zsh the directory must be in your `$fpath` before `compinit` runs:
 
@@ -344,6 +358,17 @@ Installing from PyPI rather than a checkout, the script ships as package data:
 ```bash
 source "$(python3 -c 'import plexdo,pathlib;print(pathlib.Path(plexdo.__file__).parent/"data/plexdo.bash")')"
 ```
+
+PowerShell has no drop-in completion directory, so dot-source the file from
+your profile:
+
+```powershell
+New-Item -Type File -Force $PROFILE      # if you have no profile yet
+Add-Content $PROFILE ". $HOME/.local/share/powershell/Completions/plexdo.ps1"
+```
+
+It needs no Python: PowerShell reads the cache with `ConvertFrom-Json`, and
+completions carry the matching title as a tooltip.
 
 The bash script needs no `bash-completion` package - only bash 4+ and
 `python3`. The zsh and fish scripts likewise depend only on `python3`.
@@ -394,16 +419,12 @@ Linux, macOS, and Windows are all supported.
 | | notes |
 | --- | --- |
 | **Linux** | Reference platform. |
+| **Python** | 3.11 through 3.14. |
 | **macOS** | Completion scripts fall back to BSD `stat -f %m`, and the bash script avoids `mapfile` so it works with the bash 3.2 that macOS still ships. `make` uses only portable `install -d` / `install -m`. |
 | **Windows** | Tables fall back to ASCII box characters when the console encoding cannot represent Unicode ones (a legacy cp1252 console would otherwise abort with `UnicodeEncodeError`), and characters a title contains but the console cannot render are substituted rather than crashing. POSIX permission checks and `chmod` are skipped, since Windows uses ACLs and `os.stat` reports a synthetic mode that would trip the check on every run. |
 
-On Windows, prefer the `plexdo` alias over `plexdo`: both are installed, but a
-name containing a dot interacts awkwardly with `PATHEXT` resolution in some
-shells. Config and cache live under `%USERPROFILE%\.local\etc` and
-`%USERPROFILE%\.cache` respectively - functional, though not the native
-convention.
-
-Two caveats specific to Windows. Protecting the token file is your
+Two caveats specific to Windows. `%TEMP%` is per-user but is not protected by
+file permissions and Windows may clear it, so protecting the token file is your
 responsibility there: `chmod` cannot restrict it, so place it somewhere your
 user account alone can read. And `--password` scrubbing is best-effort - the
 `Py_GetArgcArgv` trick that hides the value from `ps` has no Windows
@@ -413,10 +434,18 @@ Use the config file or the interactive prompt instead.
 The bash, zsh, and fish completions all fall back to `python` where `python3`
 is absent, which matters under Git Bash.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `make develop`, then
+`make check` before opening a pull request.
+
+Security issues: see [SECURITY.md](SECURITY.md).
+
 ## Links
 
 - Homepage and source: <https://github.com/sidusnare/plexdo>
 - Issue tracker: <https://github.com/sidusnare/plexdo/issues>
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 

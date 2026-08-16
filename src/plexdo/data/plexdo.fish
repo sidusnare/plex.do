@@ -14,11 +14,31 @@
 # ---------------------------------------------------------------------------
 
 function __plexdo_cache_dir --description 'Directory holding the completion caches'
-    if set -q XDG_CACHE_HOME
-        echo $XDG_CACHE_HOME/plexdo
-    else
-        echo $HOME/.cache/plexdo
+    # Memoised: reads the config file to honour [plex] cache_dir.
+    if not set -q __plexdo_cache_resolved
+        set -l py (__plexdo_python)
+        set -g __plexdo_cache_resolved ($py -c '
+import configparser, os
+from pathlib import Path
+if os.name == "nt":
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+    app = Path(base) / "PlexDo" if base else Path.home() / "AppData/Local/PlexDo"
+    cfg_path, default = app / "plexdo.ini", app / "Cache"
+else:
+    cfg_path = Path("~/.local/etc/plexdo.ini").expanduser()
+    default = Path("~/.cache/plexdo").expanduser()
+value = ""
+if cfg_path.exists():
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(cfg_path, encoding="utf-8")
+        value = (parser.get("plex", "cache_dir", fallback="") or "").strip()
+    except Exception:
+        value = ""
+print(Path(os.path.expandvars(value)).expanduser() if value else default)
+' 2>/dev/null)
     end
+    echo $__plexdo_cache_resolved
 end
 
 function __plexdo_cache_fresh --description 'True when the cache file is under 15 minutes old'

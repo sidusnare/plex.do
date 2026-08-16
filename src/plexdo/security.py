@@ -17,7 +17,9 @@ def _overwrite_argv_memory(replacement: str) -> bool:
     best-effort and platform-dependent, hence the broad guard.
     """
     try:
-        argc = ctypes.c_int()
+        # Newer astroid infers a required "value" argument for ctypes
+        # scalars; the zero-argument form is correct and works at runtime.
+        argc = ctypes.c_int()  # pylint: disable=no-value-for-parameter
         argv = ctypes.POINTER(ctypes.c_char_p)()
         ctypes.pythonapi.Py_GetArgcArgv(ctypes.byref(argc), ctypes.byref(argv))
         if argc.value < 1:

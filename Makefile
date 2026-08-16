@@ -20,6 +20,7 @@ MAN_PAGE        := man/plexdo.1
 BASH_COMPLETION := completions/plexdo.bash
 ZSH_COMPLETION  := completions/_plexdo
 FISH_COMPLETION := completions/plexdo.fish
+PS_COMPLETION   := completions/plexdo.ps1
 
 # Per-user by default; PREFIX switches to system-wide locations.
 XDG_DATA_HOME   ?= $(HOME)/.local/share
@@ -29,22 +30,26 @@ MAN_DIR             ?= $(XDG_DATA_HOME)/man
 COMPLETION_DIR      ?= $(XDG_DATA_HOME)/bash-completion/completions
 ZSH_COMPLETION_DIR  ?= $(XDG_DATA_HOME)/zsh/site-functions
 FISH_COMPLETION_DIR ?= $(XDG_CONFIG_HOME)/fish/completions
+PS_COMPLETION_DIR   ?= $(XDG_DATA_HOME)/powershell/Completions
 else
 MAN_DIR             ?= $(PREFIX)/share/man
 COMPLETION_DIR      ?= $(PREFIX)/share/bash-completion/completions
 ZSH_COMPLETION_DIR  ?= $(PREFIX)/share/zsh/site-functions
 FISH_COMPLETION_DIR ?= $(PREFIX)/share/fish/vendor_completions.d
+PS_COMPLETION_DIR   ?= $(PREFIX)/share/powershell/Completions
 endif
 
 MAN_TARGET  := $(DESTDIR)$(MAN_DIR)/man1/plexdo.1
 BASH_TARGET := $(DESTDIR)$(COMPLETION_DIR)/plexdo
 ZSH_TARGET  := $(DESTDIR)$(ZSH_COMPLETION_DIR)/_plexdo
 FISH_TARGET := $(DESTDIR)$(FISH_COMPLETION_DIR)/plexdo.fish
+PS_TARGET   := $(DESTDIR)$(PS_COMPLETION_DIR)/plexdo.ps1
 
 .PHONY: help install uninstall reinstall develop install-completion \
         uninstall-completion install-completion-bash install-completion-zsh \
-        install-completion-fish install-man uninstall-man check-version \
-        smoke check-assets \
+        install-completion-fish install-completion-powershell install-man \
+        uninstall-man check-version \
+        smoke check-assets test \
         build check lint dist-check clean distclean
 
 # ---------------------------------------------------------------------------
@@ -60,6 +65,7 @@ help:
 	@echo "  install-completion    install completions for bash, zsh, and fish"
 	@echo "  uninstall-completion  remove all installed completion scripts"
 	@echo "  build                 build the sdist and wheel into dist/"
+	@echo "  test                  run the test suite"
 	@echo "  lint                  run pylint over src/plexdo"
 	@echo "  dist-check            twine check the built artifacts"
 	@echo "  check                 lint + build + dist-check"
@@ -69,6 +75,7 @@ help:
 	@echo "  bash completion:      $(BASH_TARGET)"
 	@echo "  zsh completion:       $(ZSH_TARGET)"
 	@echo "  fish completion:      $(FISH_TARGET)"
+	@echo "  pwsh completion:      $(PS_TARGET)"
 	@echo "  man page:             $(MAN_TARGET)"
 	@echo ""
 	@echo "Set SHELLS to limit which are installed, e.g. SHELLS=\"bash zsh\""
@@ -107,6 +114,7 @@ uninstall-man:
 	fi
 
 # Which shells to install completions for; override to limit.
+# powershell is opt-in: SHELLS="bash zsh fish powershell"
 SHELLS ?= bash zsh fish
 
 install-completion: $(addprefix install-completion-,$(SHELLS))
@@ -127,9 +135,17 @@ install-completion-fish: $(FISH_COMPLETION)
 	@install -m 644 "$(FISH_COMPLETION)" "$(FISH_TARGET)"
 	@echo "Installed fish completion -> $(FISH_TARGET)"
 
+# PowerShell has no drop-in completion directory, so the file is installed and
+# the user dot-sources it from their profile.
+install-completion-powershell: $(PS_COMPLETION)
+	@install -d "$(DESTDIR)$(PS_COMPLETION_DIR)"
+	@install -m 644 "$(PS_COMPLETION)" "$(PS_TARGET)"
+	@echo "Installed pwsh completion -> $(PS_TARGET)"
+	@echo "  (add to your profile:  . $(PS_TARGET) )"
+
 # Only ever removes the exact files this Makefile installs; never a directory.
 uninstall-completion:
-	@for target in "$(BASH_TARGET)" "$(ZSH_TARGET)" "$(FISH_TARGET)"; do \
+	@for target in "$(BASH_TARGET)" "$(ZSH_TARGET)" "$(FISH_TARGET)" "$(PS_TARGET)"; do \
 		if [ -f "$$target" ]; then \
 			rm -f "$$target"; \
 			echo "Removed $$target"; \
@@ -181,7 +197,7 @@ print('smoke: %d commands across %d modules' % (len(h), len(MODULES)))"
 # wheel. Source is also required to be plain ASCII.
 check-assets:
 	@fail=0; \
-	for f in plexdo.bash _plexdo plexdo.fish; do \
+	for f in plexdo.bash _plexdo plexdo.fish plexdo.ps1; do \
 		cmp -s "completions/$$f" "src/$(PACKAGE)/data/$$f" || { \
 			echo "stale mirror: src/$(PACKAGE)/data/$$f differs from completions/$$f" >&2; fail=1; }; \
 	done; \
@@ -195,7 +211,10 @@ check-assets:
 	done; \
 	[ $$fail -eq 0 ] && echo "assets: mirrors in sync, source is plain ASCII"
 
-check: check-version check-assets smoke lint build dist-check
+test:
+	@PYTHONPATH=src $(PYTHON) -m pytest
+
+check: check-version check-assets smoke test lint build dist-check
 	@echo ""
 	@echo "All checks passed."
 
